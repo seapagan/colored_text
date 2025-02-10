@@ -523,39 +523,103 @@ mod tests {
         );
     }
 
+    /// Helper function to check if two RGB values are equal within a tolerance of 1
+    /// This accounts for floating-point rounding differences in HSL to RGB conversion
+    fn assert_rgb_approx_eq(actual: &str, expected: &str) {
+        let extract_rgb = |s: &str| {
+            let parts: Vec<&str> = s.split(';').collect();
+            if parts.len() >= 5 {
+                let r = parts[2].parse::<i32>().unwrap();
+                let g = parts[3].parse::<i32>().unwrap();
+                let b = parts[4].split('m').next().unwrap().parse::<i32>().unwrap();
+                (r, g, b)
+            } else {
+                panic!("Invalid ANSI color sequence");
+            }
+        };
+
+        let (r1, g1, b1) = extract_rgb(actual);
+        let (r2, g2, b2) = extract_rgb(expected);
+
+        assert!(
+            (r1 - r2).abs() <= 1 && (g1 - g2).abs() <= 1 && (b1 - b2).abs() <= 1,
+            "RGB values differ by more than 1: ({}, {}, {}) vs ({}, {}, {})",
+            r1,
+            g1,
+            b1,
+            r2,
+            g2,
+            b2
+        );
+    }
+
+    #[rstest]
+    #[case(0.0, 100.0, 50.0, 255, 0, 0)] // Red (hue segment 0)
+    #[case(60.0, 100.0, 50.0, 255, 255, 0)] // Yellow (boundary 0-1)
+    #[case(90.0, 100.0, 50.0, 128, 255, 0)] // Chartreuse (hue segment 1)
+    #[case(120.0, 100.0, 50.0, 0, 255, 0)] // Green (boundary 1-2)
+    #[case(150.0, 100.0, 50.0, 0, 255, 128)] // Spring Green (hue segment 2)
+    #[case(180.0, 100.0, 50.0, 0, 255, 255)] // Cyan (boundary 2-3)
+    #[case(210.0, 100.0, 50.0, 0, 128, 255)] // Azure (hue segment 3)
+    #[case(240.0, 100.0, 50.0, 0, 0, 255)] // Blue (boundary 3-4)
+    #[case(300.0, 100.0, 50.0, 255, 0, 255)] // Magenta (boundary 4-5)
+    #[case(330.0, 100.0, 50.0, 255, 0, 128)] // Rose (hue segment 5)
+    #[case(360.0, 100.0, 50.0, 255, 0, 0)] // Red again (full circle)
+    fn test_hsl_colors_comprehensive(
+        #[case] h: f32,
+        #[case] s: f32,
+        #[case] l: f32,
+        #[case] r: u8,
+        #[case] g: u8,
+        #[case] b: u8,
+    ) {
+        let actual = "test".hsl(h, s, l);
+        let expected = "test".rgb(r, g, b);
+        assert_rgb_approx_eq(&actual, &expected);
+    }
+
     #[test]
-    fn test_hsl_colors() {
-        // Red (0° hue)
-        assert_eq!("test".hsl(0.0, 100.0, 50.0), "test".rgb(255, 0, 0));
+    fn test_hsl_edge_cases() {
+        // Helper closure for approximate RGB comparison
+        let assert_hsl_rgb = |h, s, l, r, g, b| {
+            let actual = "test".hsl(h, s, l);
+            let expected = "test".rgb(r, g, b);
+            assert_rgb_approx_eq(&actual, &expected);
+        };
 
-        // Green (120° hue)
-        assert_eq!("test".hsl(120.0, 100.0, 50.0), "test".rgb(0, 255, 0));
+        // Gray scale (0% saturation)
+        assert_hsl_rgb(0.0, 0.0, 0.0, 0, 0, 0); // Black
+        assert_hsl_rgb(0.0, 0.0, 25.0, 64, 64, 64); // Dark gray
+        assert_hsl_rgb(0.0, 0.0, 50.0, 128, 128, 128); // Mid gray
+        assert_hsl_rgb(0.0, 0.0, 75.0, 191, 191, 191); // Light gray
+        assert_hsl_rgb(0.0, 0.0, 100.0, 255, 255, 255); // White
 
-        // Blue (240° hue)
-        assert_eq!("test".hsl(240.0, 100.0, 50.0), "test".rgb(0, 0, 255));
+        // Saturation variations (red hue)
+        assert_hsl_rgb(0.0, 25.0, 50.0, 159, 96, 96); // Low saturation
+        assert_hsl_rgb(0.0, 50.0, 50.0, 191, 64, 64); // Medium saturation
+        assert_hsl_rgb(0.0, 75.0, 50.0, 223, 32, 32); // High saturation
 
-        // Gray (any hue, 0% saturation)
-        let gray = "test".hsl(0.0, 0.0, 50.0);
-        // Due to floating point conversion, the value might be 127 or 128
-        assert!(gray == "test".rgb(127, 127, 127) || gray == "test".rgb(128, 128, 128));
-
-        // White (100% lightness)
-        assert_eq!("test".hsl(0.0, 0.0, 100.0), "test".rgb(255, 255, 255));
-
-        // Black (0% lightness)
-        assert_eq!("test".hsl(0.0, 0.0, 0.0), "test".rgb(0, 0, 0));
+        // Lightness variations with full saturation
+        assert_hsl_rgb(120.0, 100.0, 25.0, 0, 128, 0); // Dark green
+        assert_hsl_rgb(120.0, 100.0, 75.0, 128, 255, 128); // Light green
     }
 
     #[test]
     fn test_hsl_background_colors() {
         // Red background
-        assert_eq!("test".on_hsl(0.0, 100.0, 50.0), "test".on_rgb(255, 0, 0));
+        let actual = "test".on_hsl(0.0, 100.0, 50.0);
+        let expected = "test".on_rgb(255, 0, 0);
+        assert_rgb_approx_eq(&actual, &expected);
 
         // Green background
-        assert_eq!("test".on_hsl(120.0, 100.0, 50.0), "test".on_rgb(0, 255, 0));
+        let actual = "test".on_hsl(120.0, 100.0, 50.0);
+        let expected = "test".on_rgb(0, 255, 0);
+        assert_rgb_approx_eq(&actual, &expected);
 
         // Blue background
-        assert_eq!("test".on_hsl(240.0, 100.0, 50.0), "test".on_rgb(0, 0, 255));
+        let actual = "test".on_hsl(240.0, 100.0, 50.0);
+        let expected = "test".on_rgb(0, 0, 255);
+        assert_rgb_approx_eq(&actual, &expected);
     }
 
     #[test]
@@ -585,6 +649,10 @@ mod tests {
         // Test hex colors
         assert_eq!("test".hex("#ff8000"), "test");
         assert_eq!("test".on_hex("#ff8000"), "test");
+
+        // Test HSL colors
+        assert_eq!("test".hsl(0.0, 100.0, 50.0), "test");
+        assert_eq!("test".on_hsl(0.0, 100.0, 50.0), "test");
 
         // Test chaining
         assert_eq!("test".red().bold(), "test");
