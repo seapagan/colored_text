@@ -111,6 +111,8 @@ pub trait Colorize {
     fn dim(&self) -> String;
     fn italic(&self) -> String;
     fn underline(&self) -> String;
+    fn inverse(&self) -> String;
+    fn strikethrough(&self) -> String;
 
     // Background colors
     fn on_red(&self) -> String;
@@ -197,6 +199,14 @@ impl<T: std::fmt::Display> Colorize for T {
     }
     fn underline(&self) -> String {
         self.colorize("4")
+    }
+
+    fn inverse(&self) -> String {
+        self.colorize("7")
+    }
+
+    fn strikethrough(&self) -> String {
+        self.colorize("9")
     }
 
     fn on_red(&self) -> String {
@@ -340,6 +350,8 @@ mod tests {
     #[case("dim", "2")]
     #[case("italic", "3")]
     #[case("underline", "4")]
+    #[case("inverse", "7")]
+    #[case("strikethrough", "9")]
     fn test_styles(#[case] style: &str, #[case] code: &str) {
         let text = "test";
         let expected = format!("\x1b[{}m{}\x1b[0m", code, text);
@@ -348,6 +360,8 @@ mod tests {
             "dim" => assert_eq!(text.dim(), expected),
             "italic" => assert_eq!(text.italic(), expected),
             "underline" => assert_eq!(text.underline(), expected),
+            "inverse" => assert_eq!(text.inverse(), expected),
+            "strikethrough" => assert_eq!(text.strikethrough(), expected),
             _ => unreachable!(),
         }
     }

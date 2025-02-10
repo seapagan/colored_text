@@ -30,6 +30,8 @@ fn main() {
     println!("{}", "Dim text".dim());
     println!("{}", "Italic text".italic());
     println!("{}", "Underlined text".underline());
+    println!("{}", "Inverse text".inverse());
+    println!("{}", "Strikethrough text".strikethrough());
 
     // RGB and Hex colors
     println!("\nRGB and Hex colors:");
