@@ -61,10 +61,13 @@
 //! by most modern terminals. If your terminal doesn't support ANSI escape codes,
 //! the text will be displayed without styling.
 
-/// Check if colors should be applied based on NO_COLOR environment variable.
-/// Returns false if NO_COLOR is set (any value), true otherwise.
+use std::io::IsTerminal;
+
+/// Check if colors should be applied based on:
+/// - NO_COLOR environment variable (returns false if set to any value)
+/// - Whether stdout is connected to a terminal (returns false if output is piped/redirected)
 fn should_colorize() -> bool {
-    std::env::var("NO_COLOR").is_err()
+    std::env::var("NO_COLOR").is_err() && std::io::stdout().is_terminal()
 }
 
 /// Convert HSL color values to RGB.
@@ -623,7 +626,8 @@ mod tests {
     }
 
     #[test]
-    fn test_no_color() {
+    fn test_no_color_and_terminal_detection() {
+        // Test NO_COLOR environment variable
         std::env::set_var("NO_COLOR", "1");
 
         // Test basic colors
@@ -665,6 +669,13 @@ mod tests {
 
         // Clean up
         std::env::remove_var("NO_COLOR");
+
+        // Note: We can't easily test the terminal detection in unit tests
+        // since std::io::stdout().is_terminal() depends on the actual
+        // terminal state. The behavior has been manually verified:
+        // - Returns true when running normally in a terminal
+        // - Returns false when output is piped (e.g., `cargo test | cat`)
+        // - Returns false when output is redirected (e.g., `cargo test > output.txt`)
     }
 
     #[test]
