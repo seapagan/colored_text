@@ -103,14 +103,35 @@ println!("{}", format!("Hello, {}!", name.blue().bold()));
 
 ### RGB and Hex Colors
 
-- `.rgb(r, g, b)` - Custom text color using RGB values
-- `.on_rgb(r, g, b)` - Custom background color using RGB values
+- `.rgb(r, g, b)` - Custom text color using RGB values (0-255, compile-time enforced)
+- `.on_rgb(r, g, b)` - Custom background color using RGB values (0-255, compile-time enforced)
 - `.hex(code)` - Custom text color using HTML/CSS hex code (e.g., "#ff8000" or "ff8000")
 - `.on_hex(code)` - Custom background color using HTML/CSS hex code
 
 ### Other
 
 - `.clear()` - Remove all styling
+
+## Input Handling and Validation
+
+- RGB values must be in range 0-255 (enforced at compile time via `u8` type)
+- Attempting to use RGB values > 255 will result in a compile error
+- Hex color codes can be provided with or without the '#' prefix
+- Invalid hex codes (wrong length, invalid characters) will result in uncolored text
+- All color methods are guaranteed to return a valid string, never panicking
+
+```rust
+// RGB values are constrained to 0-255
+println!("{}", "RGB color".rgb(255, 128, 0));
+
+// Hex colors work with or without #
+println!("{}", "Hex color".hex("#ff8000"));
+println!("{}", "Also valid".hex("ff8000"));
+
+// Invalid hex codes return uncolored text
+println!("{}", "Invalid".hex("xyz")); // Returns uncolored text
+println!("{}", "Too short".hex("#f8")); // Returns uncolored text
+```
 
 ## Terminal Compatibility
 

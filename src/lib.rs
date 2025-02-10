@@ -20,8 +20,9 @@
 //! let name = "World";
 //! println!("{}", format!("Hello, {}!", name.blue().bold()));
 //!
-//! // RGB colors
-//! println!("{}", "Custom color".rgb(255, 128, 0));
+//! // RGB and Hex colors
+//! println!("{}", "RGB color".rgb(255, 128, 0));
+//! println!("{}", "Hex color".hex("#ff8000"));
 //! ```
 //!
 //! # Features
@@ -30,9 +31,29 @@
 //! - Background colors
 //! - Bright color variants
 //! - Text styles (bold, dim, italic, underline)
-//! - RGB color support
+//! - RGB and Hex color support
 //! - Style chaining
 //! - Works with format! macro
+//!
+//! # Input Handling
+//!
+//! - RGB values must be in range 0-255 (enforced at compile time via `u8` type)
+//! - Attempting to use RGB values > 255 will result in a compile error
+//! - Hex color codes can be provided with or without the '#' prefix
+//! - Invalid hex codes (wrong length, invalid characters) will result in uncolored text
+//! - All color methods are guaranteed to return a valid string, never panicking
+//!
+//! ```rust
+//! use colored_text::Colorize;
+//!
+//! // Valid hex codes (with or without #)
+//! println!("{}", "Valid hex".hex("#ff8000"));
+//! println!("{}", "Also valid".hex("ff8000"));
+//!
+//! // Invalid hex codes return uncolored text
+//! println!("{}", "Invalid hex".hex("xyz")); // Returns uncolored text
+//! println!("{}", "Too short".hex("#f8")); // Returns uncolored text
+//! ```
 //!
 //! # Note
 //!
@@ -40,7 +61,11 @@
 //! by most modern terminals. If your terminal doesn't support ANSI escape codes,
 //! the text will be displayed without styling.
 
-/// Helper function to convert a hex color string to RGB values
+/// Helper function to convert a hex color string to RGB values.
+/// Returns None for invalid hex codes:
+/// - Must be 6 characters (not counting optional # prefix)
+/// - Must contain valid hex digits (0-9, a-f, A-F)
+/// - Invalid hex codes will return None, resulting in uncolored text
 fn hex_to_rgb(hex: &str) -> Option<(u8, u8, u8)> {
     let hex = hex.trim_start_matches('#');
     if hex.len() != 6 {
@@ -98,7 +123,9 @@ pub trait Colorize {
     fn on_black(&self) -> String;
 
     // RGB and Hex color support
+    /// Set text color using RGB values (0-255, compile-time enforced)
     fn rgb(&self, r: u8, g: u8, b: u8) -> String;
+    /// Set background color using RGB values (0-255, compile-time enforced)
     fn on_rgb(&self, r: u8, g: u8, b: u8) -> String;
     fn hex(&self, hex: &str) -> String;
     fn on_hex(&self, hex: &str) -> String;
