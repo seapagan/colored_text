@@ -33,10 +33,17 @@ fn main() {
     println!("{}", "Inverse text".inverse());
     println!("{}", "Strikethrough text".strikethrough());
 
-    // RGB and Hex colors
-    println!("\nRGB and Hex colors:");
+    // RGB, HSL, and Hex colors
+    println!("\nRGB, HSL, and Hex colors:");
     println!("{}", "Custom RGB color".rgb(255, 128, 0));
     println!("{}", "Custom RGB background".on_rgb(0, 128, 255));
+
+    println!("{}", "Pure Red (HSL)".hsl(0.0, 100.0, 50.0));
+    println!("{}", "Pure Green (HSL)".hsl(120.0, 100.0, 50.0));
+    println!("{}", "Pure Blue (HSL)".hsl(240.0, 100.0, 50.0));
+    println!("{}", "Pink (HSL)".hsl(350.0, 100.0, 75.0));
+    println!("{}", "HSL Background".on_hsl(200.0, 100.0, 50.0));
+
     println!("{}", "Hex color (#ff8000)".hex("#ff8000"));
     println!("{}", "Hex background (#0080ff)".on_hex("#0080ff"));
 

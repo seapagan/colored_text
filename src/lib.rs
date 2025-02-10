@@ -67,6 +67,39 @@ fn should_colorize() -> bool {
     std::env::var("NO_COLOR").is_err()
 }
 
+/// Convert HSL color values to RGB.
+/// - h: Hue (0-360 degrees)
+/// - s: Saturation (0-100 percent)
+/// - l: Lightness (0-100 percent)
+fn hsl_to_rgb(h: f32, s: f32, l: f32) -> (u8, u8, u8) {
+    // Normalize to 0-1
+    let h = h / 360.0;
+    let s = s / 100.0;
+    let l = l / 100.0;
+
+    // Calculate intermediate values
+    let c = (1.0 - (2.0 * l - 1.0).abs()) * s;
+    let x = c * (1.0 - ((h * 6.0) % 2.0 - 1.0).abs());
+    let m = l - c / 2.0;
+
+    // Convert to RGB based on hue segment
+    let (r, g, b) = match (h * 6.0) as i32 {
+        0 => (c, x, 0.0),
+        1 => (x, c, 0.0),
+        2 => (0.0, c, x),
+        3 => (0.0, x, c),
+        4 => (x, 0.0, c),
+        _ => (c, 0.0, x),
+    };
+
+    // Convert to 0-255 range
+    (
+        ((r + m) * 255.0) as u8,
+        ((g + m) * 255.0) as u8,
+        ((b + m) * 255.0) as u8,
+    )
+}
+
 /// Helper function to convert a hex color string to RGB values.
 /// Returns None for invalid hex codes:
 /// - Must be 6 characters (not counting optional # prefix)
@@ -130,11 +163,15 @@ pub trait Colorize {
     fn on_white(&self) -> String;
     fn on_black(&self) -> String;
 
-    // RGB and Hex color support
+    // RGB, HSL, and Hex color support
     /// Set text color using RGB values (0-255, compile-time enforced)
     fn rgb(&self, r: u8, g: u8, b: u8) -> String;
     /// Set background color using RGB values (0-255, compile-time enforced)
     fn on_rgb(&self, r: u8, g: u8, b: u8) -> String;
+    /// Set text color using HSL values (hue: 0-360, saturation: 0-100, lightness: 0-100)
+    fn hsl(&self, h: f32, s: f32, l: f32) -> String;
+    /// Set background color using HSL values (hue: 0-360, saturation: 0-100, lightness: 0-100)
+    fn on_hsl(&self, h: f32, s: f32, l: f32) -> String;
     fn hex(&self, hex: &str) -> String;
     fn on_hex(&self, hex: &str) -> String;
 
@@ -255,6 +292,22 @@ impl<T: std::fmt::Display> Colorize for T {
             return self.to_string();
         }
         format!("\x1b[48;2;{};{};{}m{}\x1b[0m", r, g, b, self)
+    }
+
+    fn hsl(&self, h: f32, s: f32, l: f32) -> String {
+        if !should_colorize() {
+            return self.to_string();
+        }
+        let (r, g, b) = hsl_to_rgb(h, s, l);
+        self.rgb(r, g, b)
+    }
+
+    fn on_hsl(&self, h: f32, s: f32, l: f32) -> String {
+        if !should_colorize() {
+            return self.to_string();
+        }
+        let (r, g, b) = hsl_to_rgb(h, s, l);
+        self.on_rgb(r, g, b)
     }
 
     fn hex(&self, hex: &str) -> String {
@@ -470,6 +523,105 @@ mod tests {
         );
     }
 
+    /// Helper function to check if two RGB values are equal within a tolerance of 1
+    /// This accounts for floating-point rounding differences in HSL to RGB conversion
+    fn assert_rgb_approx_eq(actual: &str, expected: &str) {
+        let extract_rgb = |s: &str| {
+            let parts: Vec<&str> = s.split(';').collect();
+            if parts.len() >= 5 {
+                let r = parts[2].parse::<i32>().unwrap();
+                let g = parts[3].parse::<i32>().unwrap();
+                let b = parts[4].split('m').next().unwrap().parse::<i32>().unwrap();
+                (r, g, b)
+            } else {
+                panic!("Invalid ANSI color sequence");
+            }
+        };
+
+        let (r1, g1, b1) = extract_rgb(actual);
+        let (r2, g2, b2) = extract_rgb(expected);
+
+        assert!(
+            (r1 - r2).abs() <= 1 && (g1 - g2).abs() <= 1 && (b1 - b2).abs() <= 1,
+            "RGB values differ by more than 1: ({}, {}, {}) vs ({}, {}, {})",
+            r1,
+            g1,
+            b1,
+            r2,
+            g2,
+            b2
+        );
+    }
+
+    #[rstest]
+    #[case(0.0, 100.0, 50.0, 255, 0, 0)] // Red (hue segment 0)
+    #[case(60.0, 100.0, 50.0, 255, 255, 0)] // Yellow (boundary 0-1)
+    #[case(90.0, 100.0, 50.0, 128, 255, 0)] // Chartreuse (hue segment 1)
+    #[case(120.0, 100.0, 50.0, 0, 255, 0)] // Green (boundary 1-2)
+    #[case(150.0, 100.0, 50.0, 0, 255, 128)] // Spring Green (hue segment 2)
+    #[case(180.0, 100.0, 50.0, 0, 255, 255)] // Cyan (boundary 2-3)
+    #[case(210.0, 100.0, 50.0, 0, 128, 255)] // Azure (hue segment 3)
+    #[case(240.0, 100.0, 50.0, 0, 0, 255)] // Blue (boundary 3-4)
+    #[case(300.0, 100.0, 50.0, 255, 0, 255)] // Magenta (boundary 4-5)
+    #[case(330.0, 100.0, 50.0, 255, 0, 128)] // Rose (hue segment 5)
+    #[case(360.0, 100.0, 50.0, 255, 0, 0)] // Red again (full circle)
+    fn test_hsl_colors_comprehensive(
+        #[case] h: f32,
+        #[case] s: f32,
+        #[case] l: f32,
+        #[case] r: u8,
+        #[case] g: u8,
+        #[case] b: u8,
+    ) {
+        let actual = "test".hsl(h, s, l);
+        let expected = "test".rgb(r, g, b);
+        assert_rgb_approx_eq(&actual, &expected);
+    }
+
+    #[test]
+    fn test_hsl_edge_cases() {
+        // Helper closure for approximate RGB comparison
+        let assert_hsl_rgb = |h, s, l, r, g, b| {
+            let actual = "test".hsl(h, s, l);
+            let expected = "test".rgb(r, g, b);
+            assert_rgb_approx_eq(&actual, &expected);
+        };
+
+        // Gray scale (0% saturation)
+        assert_hsl_rgb(0.0, 0.0, 0.0, 0, 0, 0); // Black
+        assert_hsl_rgb(0.0, 0.0, 25.0, 64, 64, 64); // Dark gray
+        assert_hsl_rgb(0.0, 0.0, 50.0, 128, 128, 128); // Mid gray
+        assert_hsl_rgb(0.0, 0.0, 75.0, 191, 191, 191); // Light gray
+        assert_hsl_rgb(0.0, 0.0, 100.0, 255, 255, 255); // White
+
+        // Saturation variations (red hue)
+        assert_hsl_rgb(0.0, 25.0, 50.0, 159, 96, 96); // Low saturation
+        assert_hsl_rgb(0.0, 50.0, 50.0, 191, 64, 64); // Medium saturation
+        assert_hsl_rgb(0.0, 75.0, 50.0, 223, 32, 32); // High saturation
+
+        // Lightness variations with full saturation
+        assert_hsl_rgb(120.0, 100.0, 25.0, 0, 128, 0); // Dark green
+        assert_hsl_rgb(120.0, 100.0, 75.0, 128, 255, 128); // Light green
+    }
+
+    #[test]
+    fn test_hsl_background_colors() {
+        // Red background
+        let actual = "test".on_hsl(0.0, 100.0, 50.0);
+        let expected = "test".on_rgb(255, 0, 0);
+        assert_rgb_approx_eq(&actual, &expected);
+
+        // Green background
+        let actual = "test".on_hsl(120.0, 100.0, 50.0);
+        let expected = "test".on_rgb(0, 255, 0);
+        assert_rgb_approx_eq(&actual, &expected);
+
+        // Blue background
+        let actual = "test".on_hsl(240.0, 100.0, 50.0);
+        let expected = "test".on_rgb(0, 0, 255);
+        assert_rgb_approx_eq(&actual, &expected);
+    }
+
     #[test]
     fn test_no_color() {
         std::env::set_var("NO_COLOR", "1");
@@ -498,6 +650,10 @@ mod tests {
         assert_eq!("test".hex("#ff8000"), "test");
         assert_eq!("test".on_hex("#ff8000"), "test");
 
+        // Test HSL colors
+        assert_eq!("test".hsl(0.0, 100.0, 50.0), "test");
+        assert_eq!("test".on_hsl(0.0, 100.0, 50.0), "test");
+
         // Test chaining
         assert_eq!("test".red().bold(), "test");
         assert_eq!("test".blue().italic().on_yellow(), "test");
@@ -509,5 +665,19 @@ mod tests {
 
         // Clean up
         std::env::remove_var("NO_COLOR");
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid ANSI color sequence")]
+    fn test_assert_rgb_approx_eq_invalid_sequence() {
+        assert_rgb_approx_eq("invalid", "also invalid");
+    }
+
+    #[test]
+    #[should_panic(expected = "RGB values differ by more than 1: (255, 0, 0) vs (252, 0, 0)")]
+    fn test_assert_rgb_approx_eq_large_diff() {
+        let color1 = "test".rgb(255, 0, 0);
+        let color2 = "test".rgb(252, 0, 0);
+        assert_rgb_approx_eq(&color1, &color2);
     }
 }
