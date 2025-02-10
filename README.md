@@ -11,7 +11,7 @@ A simple and intuitive library for adding colors and styles to terminal text in 
 - Simple method-call syntax for applying colors and styles
 - Support for basic colors, bright colors, and background colors
 - Text styling (bold, dim, italic, underline)
-- RGB color support for both text and background
+- RGB and HEX color support for both text and background
 - Style chaining
 - Works with string literals, owned strings, and format macros
 - Zero dependencies
@@ -45,9 +45,11 @@ println!("{}", "Bold text".bold());
 println!("{}", "Italic text".italic());
 println!("{}", "Underlined text".underline());
 
-// RGB colors
+// RGB and Hex colors
 println!("{}", "Custom color".rgb(255, 128, 0));
 println!("{}", "Custom background".on_rgb(0, 128, 255));
+println!("{}", "Hex color".hex("#ff8000"));
+println!("{}", "Hex background".on_hex("#0080ff"));
 
 // Chaining styles
 println!("{}", "Bold red text".red().bold());
@@ -99,10 +101,12 @@ println!("{}", format!("Hello, {}!", name.blue().bold()));
 - `.italic()`
 - `.underline()`
 
-### RGB Colors
+### RGB and Hex Colors
 
-- `.rgb(r, g, b)` - Custom text color
-- `.on_rgb(r, g, b)` - Custom background color
+- `.rgb(r, g, b)` - Custom text color using RGB values
+- `.on_rgb(r, g, b)` - Custom background color using RGB values
+- `.hex(code)` - Custom text color using HTML/CSS hex code (e.g., "#ff8000" or "ff8000")
+- `.on_hex(code)` - Custom background color using HTML/CSS hex code
 
 ### Other
 

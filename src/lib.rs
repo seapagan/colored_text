@@ -40,6 +40,20 @@
 //! by most modern terminals. If your terminal doesn't support ANSI escape codes,
 //! the text will be displayed without styling.
 
+/// Helper function to convert a hex color string to RGB values
+fn hex_to_rgb(hex: &str) -> Option<(u8, u8, u8)> {
+    let hex = hex.trim_start_matches('#');
+    if hex.len() != 6 {
+        return None;
+    }
+
+    let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+    let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+    let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+
+    Some((r, g, b))
+}
+
 /// Trait for adding color and style methods to strings.
 ///
 /// This trait provides methods to colorize and style text for terminal output.
@@ -83,9 +97,11 @@ pub trait Colorize {
     fn on_white(&self) -> String;
     fn on_black(&self) -> String;
 
-    // RGB color support
+    // RGB and Hex color support
     fn rgb(&self, r: u8, g: u8, b: u8) -> String;
     fn on_rgb(&self, r: u8, g: u8, b: u8) -> String;
+    fn hex(&self, hex: &str) -> String;
+    fn on_hex(&self, hex: &str) -> String;
 
     // Clear all formatting
     fn clear(&self) -> String;
@@ -189,6 +205,22 @@ impl<T: std::fmt::Display> Colorize for T {
         format!("\x1b[48;2;{};{};{}m{}\x1b[0m", r, g, b, self)
     }
 
+    fn hex(&self, hex: &str) -> String {
+        if let Some((r, g, b)) = hex_to_rgb(hex) {
+            self.rgb(r, g, b)
+        } else {
+            self.clear() // Return uncolored text if hex code is invalid
+        }
+    }
+
+    fn on_hex(&self, hex: &str) -> String {
+        if let Some((r, g, b)) = hex_to_rgb(hex) {
+            self.on_rgb(r, g, b)
+        } else {
+            self.clear() // Return uncolored text if hex code is invalid
+        }
+    }
+
     fn clear(&self) -> String {
         format!("\x1b[0m{}\x1b[0m", self)
     }
@@ -248,5 +280,20 @@ mod tests {
     #[test]
     fn test_chaining() {
         assert_eq!("test".red().bold(), "\x1b[1m\x1b[31mtest\x1b[0m\x1b[0m");
+    }
+
+    #[test]
+    fn test_hex_colors() {
+        assert_eq!("test".hex("#ff8000"), "\x1b[38;2;255;128;0mtest\x1b[0m");
+        assert_eq!("test".hex("ff8000"), "\x1b[38;2;255;128;0mtest\x1b[0m");
+        assert_eq!("test".on_hex("#0080ff"), "\x1b[48;2;0;128;255mtest\x1b[0m");
+    }
+
+    #[test]
+    fn test_invalid_hex() {
+        // Should return uncolored text for invalid hex codes
+        assert_eq!("test".hex("invalid"), "\x1b[0mtest\x1b[0m");
+        assert_eq!("test".hex("#12"), "\x1b[0mtest\x1b[0m");
+        assert_eq!("test".on_hex("not-a-color"), "\x1b[0mtest\x1b[0m");
     }
 }

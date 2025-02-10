@@ -31,10 +31,12 @@ fn main() {
     println!("{}", "Italic text".italic());
     println!("{}", "Underlined text".underline());
 
-    // RGB colors
-    println!("\nRGB colors:");
+    // RGB and Hex colors
+    println!("\nRGB and Hex colors:");
     println!("{}", "Custom RGB color".rgb(255, 128, 0));
     println!("{}", "Custom RGB background".on_rgb(0, 128, 255));
+    println!("{}", "Hex color (#ff8000)".hex("#ff8000"));
+    println!("{}", "Hex background (#0080ff)".on_hex("#0080ff"));
 
     // Chaining styles
     println!("\nChained styles:");
