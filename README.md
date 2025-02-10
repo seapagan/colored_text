@@ -25,7 +25,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-colored_text = "0.1.1"
+colored_text = "0.2.0"
 ```
 
 ## Usage
