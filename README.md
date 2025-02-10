@@ -10,11 +10,13 @@ A simple and intuitive library for adding colors and styles to terminal text in 
 
 - Simple method-call syntax for applying colors and styles
 - Support for basic colors, bright colors, and background colors
-- Text styling (bold, dim, italic, underline)
+- Text styling (bold, dim, italic, underline, inverse, strikethrough)
 - RGB and HEX color support for both text and background
 - Style chaining
 - Works with string literals, owned strings, and format macros
 - Zero dependencies
+- Supports the `NO_COLOR` environment variable - if this is set, all colors are
+  disabled and the text is returned uncolored
 - Complete documentation and examples
 
 ## Installation
