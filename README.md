@@ -135,6 +135,19 @@ println!("{}", "Invalid".hex("xyz")); // Returns uncolored text
 println!("{}", "Too short".hex("#f8")); // Returns uncolored text
 ```
 
+## NO_COLOR Support
+
+This library respects the [NO_COLOR](https://no-color.org/) environment variable. If `NO_COLOR` is set (to any value), all color and style methods will return plain unformatted text. This makes it easy to disable all colors globally if needed.
+
+```rust
+// Colors enabled (NO_COLOR not set)
+println!("{}", "Red text".red()); // Prints in red
+
+// With NO_COLOR set
+std::env::set_var("NO_COLOR", "1");
+println!("{}", "Red text".red()); // Prints without color
+```
+
 ## Terminal Compatibility
 
 This library uses ANSI escape codes for coloring and styling text. Most modern terminals support these codes, but the actual appearance may vary depending on your terminal emulator and its configuration:

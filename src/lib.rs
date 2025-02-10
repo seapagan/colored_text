@@ -61,6 +61,12 @@
 //! by most modern terminals. If your terminal doesn't support ANSI escape codes,
 //! the text will be displayed without styling.
 
+/// Check if colors should be applied based on NO_COLOR environment variable.
+/// Returns false if NO_COLOR is set (any value), true otherwise.
+fn should_colorize() -> bool {
+    std::env::var("NO_COLOR").is_err()
+}
+
 /// Helper function to convert a hex color string to RGB values.
 /// Returns None for invalid hex codes:
 /// - Must be 6 characters (not counting optional # prefix)
@@ -138,6 +144,9 @@ pub trait Colorize {
 
 impl<T: std::fmt::Display> Colorize for T {
     fn colorize(&self, color_code: &str) -> String {
+        if !should_colorize() {
+            return self.to_string();
+        }
         format!("\x1b[{}m{}\x1b[0m", color_code, self)
     }
 
@@ -235,14 +244,23 @@ impl<T: std::fmt::Display> Colorize for T {
     }
 
     fn rgb(&self, r: u8, g: u8, b: u8) -> String {
+        if !should_colorize() {
+            return self.to_string();
+        }
         format!("\x1b[38;2;{};{};{}m{}\x1b[0m", r, g, b, self)
     }
 
     fn on_rgb(&self, r: u8, g: u8, b: u8) -> String {
+        if !should_colorize() {
+            return self.to_string();
+        }
         format!("\x1b[48;2;{};{};{}m{}\x1b[0m", r, g, b, self)
     }
 
     fn hex(&self, hex: &str) -> String {
+        if !should_colorize() {
+            return self.to_string();
+        }
         if let Some((r, g, b)) = hex_to_rgb(hex) {
             self.rgb(r, g, b)
         } else {
@@ -251,6 +269,9 @@ impl<T: std::fmt::Display> Colorize for T {
     }
 
     fn on_hex(&self, hex: &str) -> String {
+        if !should_colorize() {
+            return self.to_string();
+        }
         if let Some((r, g, b)) = hex_to_rgb(hex) {
             self.on_rgb(r, g, b)
         } else {
@@ -447,5 +468,46 @@ mod tests {
             "test".blue().italic().on_yellow(),
             "\x1b[43m\x1b[3m\x1b[34mtest\x1b[0m\x1b[0m\x1b[0m"
         );
+    }
+
+    #[test]
+    fn test_no_color() {
+        std::env::set_var("NO_COLOR", "1");
+
+        // Test basic colors
+        assert_eq!("test".red(), "test");
+        assert_eq!("test".blue(), "test");
+
+        // Test bright colors
+        assert_eq!("test".bright_red(), "test");
+        assert_eq!("test".bright_blue(), "test");
+
+        // Test background colors
+        assert_eq!("test".on_red(), "test");
+        assert_eq!("test".on_blue(), "test");
+
+        // Test styles
+        assert_eq!("test".bold(), "test");
+        assert_eq!("test".italic(), "test");
+
+        // Test RGB colors
+        assert_eq!("test".rgb(255, 128, 0), "test");
+        assert_eq!("test".on_rgb(255, 128, 0), "test");
+
+        // Test hex colors
+        assert_eq!("test".hex("#ff8000"), "test");
+        assert_eq!("test".on_hex("#ff8000"), "test");
+
+        // Test chaining
+        assert_eq!("test".red().bold(), "test");
+        assert_eq!("test".blue().italic().on_yellow(), "test");
+
+        // Test with String
+        let string = String::from("test");
+        assert_eq!(string.red(), "test");
+        assert_eq!(string.blue(), "test");
+
+        // Clean up
+        std::env::remove_var("NO_COLOR");
     }
 }
