@@ -100,6 +100,8 @@ println!("{}", format!("Hello, {}!", name.blue().bold()));
 - `.dim()`
 - `.italic()`
 - `.underline()`
+- `.inverse()` - Swap foreground and background colors
+- `.strikethrough()` - Draw a line through the text
 
 ### RGB and Hex Colors
 
