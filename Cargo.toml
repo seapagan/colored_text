@@ -1,11 +1,11 @@
 [package]
 name = "colored_text"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "A simple library for adding colors and styles to terminal text"
-authors = ["Your Name <your.email@example.com>"]
+authors = ["Grant Ramsay <seapagan@gmail.com>"]
 license = "MIT"
-repository = "https://github.com/yourusername/colored_text"
+repository = "https://github.com/seapagan/colored_text"
 keywords = ["color", "terminal", "ansi", "text", "formatting"]
 categories = ["command-line-utilities", "text-processing"]
 
@@ -16,4 +16,4 @@ path = "examples/basic.rs"
 [dependencies]
 
 [dev-dependencies]
-rstest = "0.18.2"
+rstest = "0.24.0"
