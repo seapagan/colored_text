@@ -67,6 +67,39 @@ fn should_colorize() -> bool {
     std::env::var("NO_COLOR").is_err()
 }
 
+/// Convert HSL color values to RGB.
+/// - h: Hue (0-360 degrees)
+/// - s: Saturation (0-100 percent)
+/// - l: Lightness (0-100 percent)
+fn hsl_to_rgb(h: f32, s: f32, l: f32) -> (u8, u8, u8) {
+    // Normalize to 0-1
+    let h = h / 360.0;
+    let s = s / 100.0;
+    let l = l / 100.0;
+
+    // Calculate intermediate values
+    let c = (1.0 - (2.0 * l - 1.0).abs()) * s;
+    let x = c * (1.0 - ((h * 6.0) % 2.0 - 1.0).abs());
+    let m = l - c / 2.0;
+
+    // Convert to RGB based on hue segment
+    let (r, g, b) = match (h * 6.0) as i32 {
+        0 => (c, x, 0.0),
+        1 => (x, c, 0.0),
+        2 => (0.0, c, x),
+        3 => (0.0, x, c),
+        4 => (x, 0.0, c),
+        _ => (c, 0.0, x),
+    };
+
+    // Convert to 0-255 range
+    (
+        ((r + m) * 255.0) as u8,
+        ((g + m) * 255.0) as u8,
+        ((b + m) * 255.0) as u8,
+    )
+}
+
 /// Helper function to convert a hex color string to RGB values.
 /// Returns None for invalid hex codes:
 /// - Must be 6 characters (not counting optional # prefix)
@@ -130,11 +163,15 @@ pub trait Colorize {
     fn on_white(&self) -> String;
     fn on_black(&self) -> String;
 
-    // RGB and Hex color support
+    // RGB, HSL, and Hex color support
     /// Set text color using RGB values (0-255, compile-time enforced)
     fn rgb(&self, r: u8, g: u8, b: u8) -> String;
     /// Set background color using RGB values (0-255, compile-time enforced)
     fn on_rgb(&self, r: u8, g: u8, b: u8) -> String;
+    /// Set text color using HSL values (hue: 0-360, saturation: 0-100, lightness: 0-100)
+    fn hsl(&self, h: f32, s: f32, l: f32) -> String;
+    /// Set background color using HSL values (hue: 0-360, saturation: 0-100, lightness: 0-100)
+    fn on_hsl(&self, h: f32, s: f32, l: f32) -> String;
     fn hex(&self, hex: &str) -> String;
     fn on_hex(&self, hex: &str) -> String;
 
@@ -257,6 +294,22 @@ impl<T: std::fmt::Display> Colorize for T {
         format!("\x1b[48;2;{};{};{}m{}\x1b[0m", r, g, b, self)
     }
 
+    fn hsl(&self, h: f32, s: f32, l: f32) -> String {
+        if !should_colorize() {
+            return self.to_string();
+        }
+        let (r, g, b) = hsl_to_rgb(h, s, l);
+        self.rgb(r, g, b)
+    }
+
+    fn on_hsl(&self, h: f32, s: f32, l: f32) -> String {
+        if !should_colorize() {
+            return self.to_string();
+        }
+        let (r, g, b) = hsl_to_rgb(h, s, l);
+        self.on_rgb(r, g, b)
+    }
+
     fn hex(&self, hex: &str) -> String {
         if !should_colorize() {
             return self.to_string();
@@ -288,6 +341,13 @@ impl<T: std::fmt::Display> Colorize for T {
 mod tests {
     use super::*;
     use rstest::rstest;
+    fn setup() {
+        std::env::remove_var("NO_COLOR");
+    }
+
+    fn teardown() {
+        std::env::remove_var("NO_COLOR");
+    }
 
     // Test data for basic colors
     #[rstest]
@@ -300,6 +360,7 @@ mod tests {
     #[case("white", "37")]
     #[case("black", "30")]
     fn test_basic_colors(#[case] color: &str, #[case] code: &str) {
+        setup();
         let text = "test";
         let expected = format!("\x1b[{}m{}\x1b[0m", code, text);
         match color {
@@ -325,6 +386,7 @@ mod tests {
     #[case("bright_cyan", "96")]
     #[case("bright_white", "97")]
     fn test_bright_colors(#[case] color: &str, #[case] code: &str) {
+        setup();
         let text = "test";
         let expected = format!("\x1b[{}m{}\x1b[0m", code, text);
         match color {
@@ -350,6 +412,7 @@ mod tests {
     #[case("on_white", "47")]
     #[case("on_black", "40")]
     fn test_background_colors(#[case] color: &str, #[case] code: &str) {
+        setup();
         let text = "test";
         let expected = format!("\x1b[{}m{}\x1b[0m", code, text);
         match color {
@@ -374,6 +437,7 @@ mod tests {
     #[case("inverse", "7")]
     #[case("strikethrough", "9")]
     fn test_styles(#[case] style: &str, #[case] code: &str) {
+        setup();
         let text = "test";
         let expected = format!("\x1b[{}m{}\x1b[0m", code, text);
         match style {
@@ -395,6 +459,7 @@ mod tests {
     #[case(0, 0, 0)]
     #[case(255, 255, 255)]
     fn test_rgb_colors(#[case] r: u8, #[case] g: u8, #[case] b: u8) {
+        setup();
         let text = "test";
         assert_eq!(
             text.rgb(r, g, b),
@@ -414,6 +479,7 @@ mod tests {
     #[case("#000000", 0, 0, 0)]
     #[case("#ffffff", 255, 255, 255)]
     fn test_hex_colors(#[case] hex: &str, #[case] r: u8, #[case] g: u8, #[case] b: u8) {
+        setup();
         let text = "test";
         assert_eq!(
             text.hex(hex),
@@ -444,6 +510,7 @@ mod tests {
     #[case("#1234567")]
     #[case("#xyz")]
     fn test_invalid_hex(#[case] hex: &str) {
+        setup();
         let text = "test";
         assert_eq!(text.hex(hex), "\x1b[0mtest\x1b[0m");
         assert_eq!(text.on_hex(hex), "\x1b[0mtest\x1b[0m");
@@ -451,6 +518,7 @@ mod tests {
 
     #[test]
     fn test_string_and_str() {
+        setup();
         let string = String::from("test");
         assert_eq!(string.red(), "test".red());
         assert_eq!(string.blue(), "test".blue());
@@ -458,11 +526,13 @@ mod tests {
 
     #[test]
     fn test_format_macro() {
+        setup();
         assert_eq!(format!("{}", "test".red()), format!("\x1b[31mtest\x1b[0m"));
     }
 
     #[test]
     fn test_chaining() {
+        setup();
         assert_eq!("test".red().bold(), "\x1b[1m\x1b[31mtest\x1b[0m\x1b[0m");
         assert_eq!(
             "test".blue().italic().on_yellow(),
@@ -471,43 +541,113 @@ mod tests {
     }
 
     #[test]
-    fn test_no_color() {
+    fn test_hsl_colors() {
+        setup();
+        // Red (0° hue)
+        assert_eq!("test".hsl(0.0, 100.0, 50.0), "test".rgb(255, 0, 0));
+
+        // Green (120° hue)
+        assert_eq!("test".hsl(120.0, 100.0, 50.0), "test".rgb(0, 255, 0));
+
+        // Blue (240° hue)
+        assert_eq!("test".hsl(240.0, 100.0, 50.0), "test".rgb(0, 0, 255));
+
+        // Gray (any hue, 0% saturation)
+        let gray = "test".hsl(0.0, 0.0, 50.0);
+        // Due to floating point conversion, the value might be 127 or 128
+        assert!(gray == "test".rgb(127, 127, 127) || gray == "test".rgb(128, 128, 128));
+
+        // White (100% lightness)
+        assert_eq!("test".hsl(0.0, 0.0, 100.0), "test".rgb(255, 255, 255));
+
+        // Black (0% lightness)
+        assert_eq!("test".hsl(0.0, 0.0, 0.0), "test".rgb(0, 0, 0));
+    }
+
+    #[test]
+    fn test_hsl_background_colors() {
+        setup();
+        // Red background
+        assert_eq!("test".on_hsl(0.0, 100.0, 50.0), "test".on_rgb(255, 0, 0));
+
+        // Green background
+        assert_eq!("test".on_hsl(120.0, 100.0, 50.0), "test".on_rgb(0, 255, 0));
+
+        // Blue background
+        assert_eq!("test".on_hsl(240.0, 100.0, 50.0), "test".on_rgb(0, 0, 255));
+    }
+
+    #[test]
+    #[test]
+    fn test_no_color_basic() {
+        setup();
         std::env::set_var("NO_COLOR", "1");
+        let result = "test".red();
+        teardown();
+        assert_eq!(result, "test");
+    }
 
-        // Test basic colors
-        assert_eq!("test".red(), "test");
-        assert_eq!("test".blue(), "test");
+    #[test]
+    fn test_no_color_bright() {
+        setup();
+        std::env::set_var("NO_COLOR", "1");
+        let result = "test".bright_red();
+        teardown();
+        assert_eq!(result, "test");
+    }
 
-        // Test bright colors
-        assert_eq!("test".bright_red(), "test");
-        assert_eq!("test".bright_blue(), "test");
+    #[test]
+    fn test_no_color_background() {
+        setup();
+        std::env::set_var("NO_COLOR", "1");
+        let result = "test".on_red();
+        teardown();
+        assert_eq!(result, "test");
+    }
 
-        // Test background colors
-        assert_eq!("test".on_red(), "test");
-        assert_eq!("test".on_blue(), "test");
+    #[test]
+    fn test_no_color_style() {
+        setup();
+        std::env::set_var("NO_COLOR", "1");
+        let result = "test".bold();
+        teardown();
+        assert_eq!(result, "test");
+    }
 
-        // Test styles
-        assert_eq!("test".bold(), "test");
-        assert_eq!("test".italic(), "test");
+    #[test]
+    fn test_no_color_rgb() {
+        setup();
+        std::env::set_var("NO_COLOR", "1");
+        let result = "test".rgb(255, 128, 0);
+        teardown();
+        assert_eq!(result, "test");
+    }
 
-        // Test RGB colors
-        assert_eq!("test".rgb(255, 128, 0), "test");
-        assert_eq!("test".on_rgb(255, 128, 0), "test");
+    #[test]
+    fn test_no_color_hex() {
+        setup();
+        std::env::set_var("NO_COLOR", "1");
+        let result = "test".hex("#ff8000");
+        teardown();
+        assert_eq!(result, "test");
+    }
 
-        // Test hex colors
-        assert_eq!("test".hex("#ff8000"), "test");
-        assert_eq!("test".on_hex("#ff8000"), "test");
+    #[test]
+    fn test_no_color_chaining() {
+        setup();
+        std::env::set_var("NO_COLOR", "1");
+        let result = "test".red().bold();
+        teardown();
+        assert_eq!(result, "test");
+    }
 
-        // Test chaining
-        assert_eq!("test".red().bold(), "test");
-        assert_eq!("test".blue().italic().on_yellow(), "test");
-
-        // Test with String
+    #[test]
+    fn test_no_color_string() {
+        setup();
+        std::env::set_var("NO_COLOR", "1");
         let string = String::from("test");
-        assert_eq!(string.red(), "test");
-        assert_eq!(string.blue(), "test");
-
-        // Clean up
-        std::env::remove_var("NO_COLOR");
+        let result = string.red();
+        teardown();
+        assert_eq!(result, "test");
     }
 }

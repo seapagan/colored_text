@@ -105,10 +105,12 @@ println!("{}", format!("Hello, {}!", name.blue().bold()));
 - `.inverse()` - Swap foreground and background colors
 - `.strikethrough()` - Draw a line through the text
 
-### RGB and Hex Colors
+### RGB, HSL, and Hex Colors
 
 - `.rgb(r, g, b)` - Custom text color using RGB values (0-255, compile-time enforced)
 - `.on_rgb(r, g, b)` - Custom background color using RGB values (0-255, compile-time enforced)
+- `.hsl(h, s, l)` - Custom text color using HSL values (hue: 0-360°, saturation: 0-100%, lightness: 0-100%)
+- `.on_hsl(h, s, l)` - Custom background color using HSL values
 - `.hex(code)` - Custom text color using HTML/CSS hex code (e.g., "#ff8000" or "ff8000")
 - `.on_hex(code)` - Custom background color using HTML/CSS hex code
 
@@ -127,6 +129,12 @@ println!("{}", format!("Hello, {}!", name.blue().bold()));
 ```rust
 // RGB values are constrained to 0-255
 println!("{}", "RGB color".rgb(255, 128, 0));
+
+// HSL values (hue: 0-360°, saturation/lightness: 0-100%)
+println!("{}", "Red".hsl(0.0, 100.0, 50.0));     // Pure red
+println!("{}", "Green".hsl(120.0, 100.0, 50.0)); // Pure green
+println!("{}", "Blue".hsl(240.0, 100.0, 50.0));  // Pure blue
+println!("{}", "Gray".hsl(0.0, 0.0, 50.0));      // 50% gray
 
 // Hex colors work with or without #
 println!("{}", "Hex color".hex("#ff8000"));
