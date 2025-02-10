@@ -229,40 +229,162 @@ impl<T: std::fmt::Display> Colorize for T {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
-    #[test]
-    fn test_basic_colors() {
-        assert_eq!("test".red(), "\x1b[31mtest\x1b[0m");
-        assert_eq!("test".blue(), "\x1b[34mtest\x1b[0m");
-        assert_eq!("test".green(), "\x1b[32mtest\x1b[0m");
+    // Test data for basic colors
+    #[rstest]
+    #[case("red", "31")]
+    #[case("green", "32")]
+    #[case("yellow", "33")]
+    #[case("blue", "34")]
+    #[case("magenta", "35")]
+    #[case("cyan", "36")]
+    #[case("white", "37")]
+    #[case("black", "30")]
+    fn test_basic_colors(#[case] color: &str, #[case] code: &str) {
+        let text = "test";
+        let expected = format!("\x1b[{}m{}\x1b[0m", code, text);
+        match color {
+            "red" => assert_eq!(text.red(), expected),
+            "green" => assert_eq!(text.green(), expected),
+            "yellow" => assert_eq!(text.yellow(), expected),
+            "blue" => assert_eq!(text.blue(), expected),
+            "magenta" => assert_eq!(text.magenta(), expected),
+            "cyan" => assert_eq!(text.cyan(), expected),
+            "white" => assert_eq!(text.white(), expected),
+            "black" => assert_eq!(text.black(), expected),
+            _ => unreachable!(),
+        }
     }
 
-    #[test]
-    fn test_bright_colors() {
-        assert_eq!("test".bright_red(), "\x1b[91mtest\x1b[0m");
-        assert_eq!("test".bright_blue(), "\x1b[94mtest\x1b[0m");
+    // Test data for bright colors
+    #[rstest]
+    #[case("bright_red", "91")]
+    #[case("bright_green", "92")]
+    #[case("bright_yellow", "93")]
+    #[case("bright_blue", "94")]
+    #[case("bright_magenta", "95")]
+    #[case("bright_cyan", "96")]
+    #[case("bright_white", "97")]
+    fn test_bright_colors(#[case] color: &str, #[case] code: &str) {
+        let text = "test";
+        let expected = format!("\x1b[{}m{}\x1b[0m", code, text);
+        match color {
+            "bright_red" => assert_eq!(text.bright_red(), expected),
+            "bright_green" => assert_eq!(text.bright_green(), expected),
+            "bright_yellow" => assert_eq!(text.bright_yellow(), expected),
+            "bright_blue" => assert_eq!(text.bright_blue(), expected),
+            "bright_magenta" => assert_eq!(text.bright_magenta(), expected),
+            "bright_cyan" => assert_eq!(text.bright_cyan(), expected),
+            "bright_white" => assert_eq!(text.bright_white(), expected),
+            _ => unreachable!(),
+        }
     }
 
-    #[test]
-    fn test_background_colors() {
-        assert_eq!("test".on_red(), "\x1b[41mtest\x1b[0m");
-        assert_eq!("test".on_blue(), "\x1b[44mtest\x1b[0m");
+    // Test data for background colors
+    #[rstest]
+    #[case("on_red", "41")]
+    #[case("on_green", "42")]
+    #[case("on_yellow", "43")]
+    #[case("on_blue", "44")]
+    #[case("on_magenta", "45")]
+    #[case("on_cyan", "46")]
+    #[case("on_white", "47")]
+    #[case("on_black", "40")]
+    fn test_background_colors(#[case] color: &str, #[case] code: &str) {
+        let text = "test";
+        let expected = format!("\x1b[{}m{}\x1b[0m", code, text);
+        match color {
+            "on_red" => assert_eq!(text.on_red(), expected),
+            "on_green" => assert_eq!(text.on_green(), expected),
+            "on_yellow" => assert_eq!(text.on_yellow(), expected),
+            "on_blue" => assert_eq!(text.on_blue(), expected),
+            "on_magenta" => assert_eq!(text.on_magenta(), expected),
+            "on_cyan" => assert_eq!(text.on_cyan(), expected),
+            "on_white" => assert_eq!(text.on_white(), expected),
+            "on_black" => assert_eq!(text.on_black(), expected),
+            _ => unreachable!(),
+        }
     }
 
-    #[test]
-    fn test_styles() {
-        assert_eq!("test".bold(), "\x1b[1mtest\x1b[0m");
-        assert_eq!("test".italic(), "\x1b[3mtest\x1b[0m");
-        assert_eq!("test".underline(), "\x1b[4mtest\x1b[0m");
+    // Test data for styles
+    #[rstest]
+    #[case("bold", "1")]
+    #[case("dim", "2")]
+    #[case("italic", "3")]
+    #[case("underline", "4")]
+    fn test_styles(#[case] style: &str, #[case] code: &str) {
+        let text = "test";
+        let expected = format!("\x1b[{}m{}\x1b[0m", code, text);
+        match style {
+            "bold" => assert_eq!(text.bold(), expected),
+            "dim" => assert_eq!(text.dim(), expected),
+            "italic" => assert_eq!(text.italic(), expected),
+            "underline" => assert_eq!(text.underline(), expected),
+            _ => unreachable!(),
+        }
     }
 
-    #[test]
-    fn test_rgb_colors() {
-        assert_eq!("test".rgb(255, 128, 0), "\x1b[38;2;255;128;0mtest\x1b[0m");
+    // Test RGB colors with various values
+    #[rstest]
+    #[case(255, 128, 0)]
+    #[case(0, 255, 0)]
+    #[case(128, 128, 128)]
+    #[case(0, 0, 0)]
+    #[case(255, 255, 255)]
+    fn test_rgb_colors(#[case] r: u8, #[case] g: u8, #[case] b: u8) {
+        let text = "test";
         assert_eq!(
-            "test".on_rgb(255, 128, 0),
-            "\x1b[48;2;255;128;0mtest\x1b[0m"
+            text.rgb(r, g, b),
+            format!("\x1b[38;2;{};{};{}m{}\x1b[0m", r, g, b, text)
         );
+        assert_eq!(
+            text.on_rgb(r, g, b),
+            format!("\x1b[48;2;{};{};{}m{}\x1b[0m", r, g, b, text)
+        );
+    }
+
+    // Test hex colors with various values
+    #[rstest]
+    #[case("#ff8000", 255, 128, 0)]
+    #[case("#00ff00", 0, 255, 0)]
+    #[case("#808080", 128, 128, 128)]
+    #[case("#000000", 0, 0, 0)]
+    #[case("#ffffff", 255, 255, 255)]
+    fn test_hex_colors(#[case] hex: &str, #[case] r: u8, #[case] g: u8, #[case] b: u8) {
+        let text = "test";
+        assert_eq!(
+            text.hex(hex),
+            format!("\x1b[38;2;{};{};{}m{}\x1b[0m", r, g, b, text)
+        );
+        assert_eq!(
+            text.on_hex(hex),
+            format!("\x1b[48;2;{};{};{}m{}\x1b[0m", r, g, b, text)
+        );
+
+        // Test without # prefix
+        let hex_no_hash = hex.trim_start_matches('#');
+        assert_eq!(
+            text.hex(hex_no_hash),
+            format!("\x1b[38;2;{};{};{}m{}\x1b[0m", r, g, b, text)
+        );
+        assert_eq!(
+            text.on_hex(hex_no_hash),
+            format!("\x1b[48;2;{};{};{}m{}\x1b[0m", r, g, b, text)
+        );
+    }
+
+    #[rstest]
+    #[case("invalid")]
+    #[case("#12")]
+    #[case("not-a-color")]
+    #[case("#12345")]
+    #[case("#1234567")]
+    #[case("#xyz")]
+    fn test_invalid_hex(#[case] hex: &str) {
+        let text = "test";
+        assert_eq!(text.hex(hex), "\x1b[0mtest\x1b[0m");
+        assert_eq!(text.on_hex(hex), "\x1b[0mtest\x1b[0m");
     }
 
     #[test]
@@ -280,20 +402,9 @@ mod tests {
     #[test]
     fn test_chaining() {
         assert_eq!("test".red().bold(), "\x1b[1m\x1b[31mtest\x1b[0m\x1b[0m");
-    }
-
-    #[test]
-    fn test_hex_colors() {
-        assert_eq!("test".hex("#ff8000"), "\x1b[38;2;255;128;0mtest\x1b[0m");
-        assert_eq!("test".hex("ff8000"), "\x1b[38;2;255;128;0mtest\x1b[0m");
-        assert_eq!("test".on_hex("#0080ff"), "\x1b[48;2;0;128;255mtest\x1b[0m");
-    }
-
-    #[test]
-    fn test_invalid_hex() {
-        // Should return uncolored text for invalid hex codes
-        assert_eq!("test".hex("invalid"), "\x1b[0mtest\x1b[0m");
-        assert_eq!("test".hex("#12"), "\x1b[0mtest\x1b[0m");
-        assert_eq!("test".on_hex("not-a-color"), "\x1b[0mtest\x1b[0m");
+        assert_eq!(
+            "test".blue().italic().on_yellow(),
+            "\x1b[43m\x1b[3m\x1b[34mtest\x1b[0m\x1b[0m\x1b[0m"
+        );
     }
 }
