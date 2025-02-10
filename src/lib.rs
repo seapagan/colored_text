@@ -666,4 +666,18 @@ mod tests {
         // Clean up
         std::env::remove_var("NO_COLOR");
     }
+
+    #[test]
+    #[should_panic(expected = "Invalid ANSI color sequence")]
+    fn test_assert_rgb_approx_eq_invalid_sequence() {
+        assert_rgb_approx_eq("invalid", "also invalid");
+    }
+
+    #[test]
+    #[should_panic(expected = "RGB values differ by more than 1: (255, 0, 0) vs (252, 0, 0)")]
+    fn test_assert_rgb_approx_eq_large_diff() {
+        let color1 = "test".rgb(255, 0, 0);
+        let color2 = "test".rgb(252, 0, 0);
+        assert_rgb_approx_eq(&color1, &color2);
+    }
 }
