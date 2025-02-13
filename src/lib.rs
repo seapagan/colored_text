@@ -170,43 +170,76 @@ fn hex_to_rgb(hex: &str) -> Option<(u8, u8, u8)> {
 /// It can be used with both string literals and owned strings.
 pub trait Colorize {
     /// Returns a colored version of the string
+    /// Internal method to apply ANSI color codes to text.
+    /// This is used by all other coloring methods.
     fn colorize(&self, color_code: &str) -> String;
 
     // Basic colors
+    /// Colors the text red using ANSI escape codes.
     fn red(&self) -> String;
+    /// Colors the text green using ANSI escape codes.
     fn green(&self) -> String;
+    /// Colors the text yellow using ANSI escape codes.
     fn yellow(&self) -> String;
+    /// Colors the text blue using ANSI escape codes.
     fn blue(&self) -> String;
+    /// Colors the text magenta using ANSI escape codes.
     fn magenta(&self) -> String;
+    /// Colors the text cyan using ANSI escape codes.
     fn cyan(&self) -> String;
+    /// Colors the text white using ANSI escape codes.
     fn white(&self) -> String;
+    /// Colors the text black using ANSI escape codes.
     fn black(&self) -> String;
 
     // Bright colors
+    /// Colors the text bright red using ANSI escape codes.
     fn bright_red(&self) -> String;
+    /// Colors the text bright green using ANSI escape codes.
     fn bright_green(&self) -> String;
+    /// Colors the text bright yellow using ANSI escape codes.
     fn bright_yellow(&self) -> String;
+    /// Colors the text bright blue using ANSI escape codes.
     fn bright_blue(&self) -> String;
+    /// Colors the text bright magenta using ANSI escape codes.
     fn bright_magenta(&self) -> String;
+    /// Colors the text bright cyan using ANSI escape codes.
     fn bright_cyan(&self) -> String;
+    /// Colors the text bright white using ANSI escape codes.
     fn bright_white(&self) -> String;
 
     // Styles
+    /// Makes the text bold using ANSI escape codes.
     fn bold(&self) -> String;
+    /// Makes the text dimmed using ANSI escape codes.
     fn dim(&self) -> String;
+    /// Makes the text italic using ANSI escape codes.
+    /// Note: Not all terminals support italic text.
     fn italic(&self) -> String;
+    /// Underlines the text using ANSI escape codes.
     fn underline(&self) -> String;
+    /// Inverts the text and background colors using ANSI escape codes.
     fn inverse(&self) -> String;
+    /// Adds a strikethrough to the text using ANSI escape codes.
+    /// Note: Not all terminals support strikethrough.
     fn strikethrough(&self) -> String;
 
     // Background colors
+    /// Sets the background color to red using ANSI escape codes.
     fn on_red(&self) -> String;
+    /// Sets the background color to green using ANSI escape codes.
     fn on_green(&self) -> String;
+    /// Sets the background color to yellow using ANSI escape codes.
     fn on_yellow(&self) -> String;
+    /// Sets the background color to blue using ANSI escape codes.
     fn on_blue(&self) -> String;
+    /// Sets the background color to magenta using ANSI escape codes.
     fn on_magenta(&self) -> String;
+    /// Sets the background color to cyan using ANSI escape codes.
     fn on_cyan(&self) -> String;
+    /// Sets the background color to white using ANSI escape codes.
     fn on_white(&self) -> String;
+    /// Sets the background color to black using ANSI escape codes.
     fn on_black(&self) -> String;
 
     // RGB, HSL, and Hex color support
@@ -218,10 +251,14 @@ pub trait Colorize {
     fn hsl(&self, h: f32, s: f32, l: f32) -> String;
     /// Set background color using HSL values (hue: 0-360, saturation: 0-100, lightness: 0-100)
     fn on_hsl(&self, h: f32, s: f32, l: f32) -> String;
+    /// Set text color using hex code (e.g., "#ff8000" or "ff8000").
+    /// Returns uncolored text if the hex code is invalid.
     fn hex(&self, hex: &str) -> String;
+    /// Set background color using hex code (e.g., "#ff8000" or "ff8000").
+    /// Returns uncolored text if the hex code is invalid.
     fn on_hex(&self, hex: &str) -> String;
 
-    // Clear all formatting
+    /// Removes all color and style formatting from the text.
     fn clear(&self) -> String;
 }
 
