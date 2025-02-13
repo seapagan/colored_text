@@ -158,6 +158,26 @@ std::env::set_var("NO_COLOR", "1");
 println!("{}", "Red text".red()); // Prints without color
 ```
 
+## Terminal Detection Configuration
+
+By default, this library checks if the output is going to a terminal and disables colors when it's not (e.g., when piping output to a file). This behavior can be controlled using `ColorizeConfig`:
+
+```rust
+use colored_text::{Colorize, ColorizeConfig};
+
+// Disable terminal detection (colors will be enabled regardless of terminal status)
+ColorizeConfig::set_terminal_check(false);
+println!("{}", "Always colored".red());
+
+// Re-enable terminal detection (default behavior)
+ColorizeConfig::set_terminal_check(true);
+println!("{}", "Only colored in terminal".red());
+```
+
+This is particularly useful in test environments where you might want to force-enable colors regardless of the terminal status. The configuration is thread-local, making it safe to use in parallel tests without affecting other threads.
+
+Note: Even when terminal detection is disabled, the `NO_COLOR` environment variable still takes precedence - if it's set, colors will be disabled regardless of this setting.
+
 ## Terminal Compatibility
 
 This library uses ANSI escape codes for coloring and styling text. Most modern terminals support these codes, but the actual appearance may vary depending on your terminal emulator and its configuration:
