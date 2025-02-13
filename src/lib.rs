@@ -61,10 +61,56 @@
 //! by most modern terminals. If your terminal doesn't support ANSI escape codes,
 //! the text will be displayed without styling.
 
-/// Check if colors should be applied based on NO_COLOR environment variable.
-/// Returns false if NO_COLOR is set (any value), true otherwise.
+use std::cell::RefCell;
+use std::io::IsTerminal;
+
+/// Configuration for controlling terminal detection behavior.
+#[derive(Clone, Debug)]
+pub struct ColorizeConfig {
+    check_terminal: bool,
+}
+
+thread_local! {
+    static CONFIG: RefCell<ColorizeConfig> = RefCell::new(ColorizeConfig::default());
+}
+
+impl Default for ColorizeConfig {
+    fn default() -> Self {
+        Self {
+            check_terminal: true, // By default, we check the terminal
+        }
+    }
+}
+
+impl ColorizeConfig {
+    /// Set whether to check if output is to a terminal.
+    ///
+    /// - If true (default), colors will be disabled when not outputting to a terminal
+    /// - If false, terminal detection is skipped and colors are enabled (unless NO_COLOR is set)
+    pub fn set_terminal_check(check: bool) {
+        CONFIG.with(|c| c.borrow_mut().check_terminal = check);
+    }
+
+    /// Get the current configuration for this thread
+    fn current() -> Self {
+        CONFIG.with(|c| c.borrow().clone())
+    }
+}
+
+/// Check if colors should be applied based on:
+/// - NO_COLOR environment variable (returns false if set to any value)
+/// - Whether stdout is connected to a terminal (if terminal checking is enabled)
+///
+/// Terminal checking can be disabled using `ColorizeConfig::set_terminal_check(false)`,
+/// in which case colors will be enabled regardless of terminal status (unless NO_COLOR is set).
 fn should_colorize() -> bool {
-    std::env::var("NO_COLOR").is_err()
+    // Always check NO_COLOR env var
+    if std::env::var("NO_COLOR").is_ok() {
+        return false;
+    }
+
+    // Only check terminal if configured to do so
+    !ColorizeConfig::current().check_terminal || std::io::stdout().is_terminal()
 }
 
 /// Convert HSL color values to RGB.
@@ -124,43 +170,76 @@ fn hex_to_rgb(hex: &str) -> Option<(u8, u8, u8)> {
 /// It can be used with both string literals and owned strings.
 pub trait Colorize {
     /// Returns a colored version of the string
+    /// Internal method to apply ANSI color codes to text.
+    /// This is used by all other coloring methods.
     fn colorize(&self, color_code: &str) -> String;
 
     // Basic colors
+    /// Colors the text red using ANSI escape codes.
     fn red(&self) -> String;
+    /// Colors the text green using ANSI escape codes.
     fn green(&self) -> String;
+    /// Colors the text yellow using ANSI escape codes.
     fn yellow(&self) -> String;
+    /// Colors the text blue using ANSI escape codes.
     fn blue(&self) -> String;
+    /// Colors the text magenta using ANSI escape codes.
     fn magenta(&self) -> String;
+    /// Colors the text cyan using ANSI escape codes.
     fn cyan(&self) -> String;
+    /// Colors the text white using ANSI escape codes.
     fn white(&self) -> String;
+    /// Colors the text black using ANSI escape codes.
     fn black(&self) -> String;
 
     // Bright colors
+    /// Colors the text bright red using ANSI escape codes.
     fn bright_red(&self) -> String;
+    /// Colors the text bright green using ANSI escape codes.
     fn bright_green(&self) -> String;
+    /// Colors the text bright yellow using ANSI escape codes.
     fn bright_yellow(&self) -> String;
+    /// Colors the text bright blue using ANSI escape codes.
     fn bright_blue(&self) -> String;
+    /// Colors the text bright magenta using ANSI escape codes.
     fn bright_magenta(&self) -> String;
+    /// Colors the text bright cyan using ANSI escape codes.
     fn bright_cyan(&self) -> String;
+    /// Colors the text bright white using ANSI escape codes.
     fn bright_white(&self) -> String;
 
     // Styles
+    /// Makes the text bold using ANSI escape codes.
     fn bold(&self) -> String;
+    /// Makes the text dimmed using ANSI escape codes.
     fn dim(&self) -> String;
+    /// Makes the text italic using ANSI escape codes.
+    /// Note: Not all terminals support italic text.
     fn italic(&self) -> String;
+    /// Underlines the text using ANSI escape codes.
     fn underline(&self) -> String;
+    /// Inverts the text and background colors using ANSI escape codes.
     fn inverse(&self) -> String;
+    /// Adds a strikethrough to the text using ANSI escape codes.
+    /// Note: Not all terminals support strikethrough.
     fn strikethrough(&self) -> String;
 
     // Background colors
+    /// Sets the background color to red using ANSI escape codes.
     fn on_red(&self) -> String;
+    /// Sets the background color to green using ANSI escape codes.
     fn on_green(&self) -> String;
+    /// Sets the background color to yellow using ANSI escape codes.
     fn on_yellow(&self) -> String;
+    /// Sets the background color to blue using ANSI escape codes.
     fn on_blue(&self) -> String;
+    /// Sets the background color to magenta using ANSI escape codes.
     fn on_magenta(&self) -> String;
+    /// Sets the background color to cyan using ANSI escape codes.
     fn on_cyan(&self) -> String;
+    /// Sets the background color to white using ANSI escape codes.
     fn on_white(&self) -> String;
+    /// Sets the background color to black using ANSI escape codes.
     fn on_black(&self) -> String;
 
     // RGB, HSL, and Hex color support
@@ -172,10 +251,14 @@ pub trait Colorize {
     fn hsl(&self, h: f32, s: f32, l: f32) -> String;
     /// Set background color using HSL values (hue: 0-360, saturation: 0-100, lightness: 0-100)
     fn on_hsl(&self, h: f32, s: f32, l: f32) -> String;
+    /// Set text color using hex code (e.g., "#ff8000" or "ff8000").
+    /// Returns uncolored text if the hex code is invalid.
     fn hex(&self, hex: &str) -> String;
+    /// Set background color using hex code (e.g., "#ff8000" or "ff8000").
+    /// Returns uncolored text if the hex code is invalid.
     fn on_hex(&self, hex: &str) -> String;
 
-    // Clear all formatting
+    /// Removes all color and style formatting from the text.
     fn clear(&self) -> String;
 }
 
@@ -340,7 +423,28 @@ impl<T: std::fmt::Display> Colorize for T {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rstest::rstest;
+    use rstest::*;
+
+    /// Disables terminal checks for color support during testing.
+    ///
+    /// This function is used in tests to ensure that color codes are always
+    /// generated, regardless of whether the output is going to a terminal or
+    /// not. This allows us to verify the exact ANSI escape sequences that would
+    /// be generated under normal circumstances. This is needed since 'nextest'
+    /// at least seems to grab the output and so the terminal check would always
+    /// return false.
+    ///
+    /// # Example
+    /// ```
+    /// #[test]
+    /// fn test_colors() {
+    ///     no_terminal_check();
+    ///     assert_eq!("test".red(), "\x1b[31mtest\x1b[0m");
+    /// }
+    /// ```
+    fn no_terminal_check() {
+        ColorizeConfig::set_terminal_check(false);
+    }
 
     // Test data for basic colors
     #[rstest]
@@ -353,6 +457,7 @@ mod tests {
     #[case("white", "37")]
     #[case("black", "30")]
     fn test_basic_colors(#[case] color: &str, #[case] code: &str) {
+        no_terminal_check();
         let text = "test";
         let expected = format!("\x1b[{}m{}\x1b[0m", code, text);
         match color {
@@ -378,6 +483,7 @@ mod tests {
     #[case("bright_cyan", "96")]
     #[case("bright_white", "97")]
     fn test_bright_colors(#[case] color: &str, #[case] code: &str) {
+        no_terminal_check();
         let text = "test";
         let expected = format!("\x1b[{}m{}\x1b[0m", code, text);
         match color {
@@ -403,6 +509,7 @@ mod tests {
     #[case("on_white", "47")]
     #[case("on_black", "40")]
     fn test_background_colors(#[case] color: &str, #[case] code: &str) {
+        no_terminal_check();
         let text = "test";
         let expected = format!("\x1b[{}m{}\x1b[0m", code, text);
         match color {
@@ -427,6 +534,7 @@ mod tests {
     #[case("inverse", "7")]
     #[case("strikethrough", "9")]
     fn test_styles(#[case] style: &str, #[case] code: &str) {
+        no_terminal_check();
         let text = "test";
         let expected = format!("\x1b[{}m{}\x1b[0m", code, text);
         match style {
@@ -448,6 +556,7 @@ mod tests {
     #[case(0, 0, 0)]
     #[case(255, 255, 255)]
     fn test_rgb_colors(#[case] r: u8, #[case] g: u8, #[case] b: u8) {
+        no_terminal_check();
         let text = "test";
         assert_eq!(
             text.rgb(r, g, b),
@@ -467,6 +576,7 @@ mod tests {
     #[case("#000000", 0, 0, 0)]
     #[case("#ffffff", 255, 255, 255)]
     fn test_hex_colors(#[case] hex: &str, #[case] r: u8, #[case] g: u8, #[case] b: u8) {
+        no_terminal_check();
         let text = "test";
         assert_eq!(
             text.hex(hex),
@@ -497,6 +607,7 @@ mod tests {
     #[case("#1234567")]
     #[case("#xyz")]
     fn test_invalid_hex(#[case] hex: &str) {
+        no_terminal_check();
         let text = "test";
         assert_eq!(text.hex(hex), "\x1b[0mtest\x1b[0m");
         assert_eq!(text.on_hex(hex), "\x1b[0mtest\x1b[0m");
@@ -511,11 +622,13 @@ mod tests {
 
     #[test]
     fn test_format_macro() {
+        no_terminal_check();
         assert_eq!(format!("{}", "test".red()), format!("\x1b[31mtest\x1b[0m"));
     }
 
     #[test]
     fn test_chaining() {
+        no_terminal_check();
         assert_eq!("test".red().bold(), "\x1b[1m\x1b[31mtest\x1b[0m\x1b[0m");
         assert_eq!(
             "test".blue().italic().on_yellow(),
@@ -526,6 +639,7 @@ mod tests {
     /// Helper function to check if two RGB values are equal within a tolerance of 1
     /// This accounts for floating-point rounding differences in HSL to RGB conversion
     fn assert_rgb_approx_eq(actual: &str, expected: &str) {
+        no_terminal_check();
         let extract_rgb = |s: &str| {
             let parts: Vec<&str> = s.split(';').collect();
             if parts.len() >= 5 {
@@ -573,6 +687,7 @@ mod tests {
         #[case] g: u8,
         #[case] b: u8,
     ) {
+        no_terminal_check();
         let actual = "test".hsl(h, s, l);
         let expected = "test".rgb(r, g, b);
         assert_rgb_approx_eq(&actual, &expected);
@@ -586,6 +701,7 @@ mod tests {
             let expected = "test".rgb(r, g, b);
             assert_rgb_approx_eq(&actual, &expected);
         };
+        no_terminal_check();
 
         // Gray scale (0% saturation)
         assert_hsl_rgb(0.0, 0.0, 0.0, 0, 0, 0); // Black
@@ -606,6 +722,7 @@ mod tests {
 
     #[test]
     fn test_hsl_background_colors() {
+        no_terminal_check();
         // Red background
         let actual = "test".on_hsl(0.0, 100.0, 50.0);
         let expected = "test".on_rgb(255, 0, 0);
@@ -623,7 +740,11 @@ mod tests {
     }
 
     #[test]
-    fn test_no_color() {
+    fn test_no_color_and_terminal_detection() {
+        // Test NO_COLOR environment variable we also disable the terminal check
+        // here so we are sure the NO_COLOR variable is the only thing that
+        // disables color output.
+        no_terminal_check();
         std::env::set_var("NO_COLOR", "1");
 
         // Test basic colors
@@ -665,6 +786,13 @@ mod tests {
 
         // Clean up
         std::env::remove_var("NO_COLOR");
+
+        // Note: We can't easily test the terminal detection in unit tests
+        // since std::io::stdout().is_terminal() depends on the actual
+        // terminal state. The behavior has been manually verified:
+        // - Returns true when running normally in a terminal
+        // - Returns false when output is piped (e.g., `cargo test | cat`)
+        // - Returns false when output is redirected (e.g., `cargo test > output.txt`)
     }
 
     #[test]
@@ -676,6 +804,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "RGB values differ by more than 1: (255, 0, 0) vs (252, 0, 0)")]
     fn test_assert_rgb_approx_eq_large_diff() {
+        no_terminal_check();
         let color1 = "test".rgb(255, 0, 0);
         let color2 = "test".rgb(252, 0, 0);
         assert_rgb_approx_eq(&color1, &color2);
