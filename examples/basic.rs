@@ -78,4 +78,10 @@ fn main() {
         "is".green(),
         "important".yellow().underline()
     );
+
+    // Disabling colors
+    println!("\nDisabling colors by setting NO_COLOR environment variable:");
+    std::env::set_var("NO_COLOR", "1");
+    println!("{}", "This text should have no color".red().bold());
+    std::env::remove_var("NO_COLOR");
 }
