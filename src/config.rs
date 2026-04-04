@@ -8,6 +8,8 @@ pub enum ColorMode {
     #[default]
     Auto,
     /// Always emit styling, even when stdout is not a terminal.
+    ///
+    /// `NO_COLOR` still takes precedence and disables styled output.
     Always,
     /// Never emit styling.
     Never,
@@ -67,6 +69,10 @@ impl ColorizeConfig {
     }
 }
 
+/// Evaluate the current runtime color policy for this thread.
+///
+/// This respects [`ColorizeConfig::color_mode()`], and `NO_COLOR` takes
+/// precedence over both [`ColorMode::Auto`] and [`ColorMode::Always`].
 pub(crate) fn should_colorize() -> bool {
     match ColorizeConfig::color_mode() {
         ColorMode::Never => false,
