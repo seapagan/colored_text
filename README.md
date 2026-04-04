@@ -21,6 +21,8 @@ Rust.
 - Supports explicit runtime color modes: `Auto`, `Always`, and `Never`
 - Detects if the output is NOT going to a terminal (e.g. is going to a file or a
   pipe) and disables colors in `Auto` mode
+- Supports explicit target-aware rendering for stdout, stderr, or custom
+  terminal-aware destinations
 - Complete documentation and examples
 
 ## Installation
@@ -197,6 +199,20 @@ applications that want to force color on or off for a specific execution path.
 
 `NO_COLOR` still takes precedence in `Auto` and `Always` mode. If `NO_COLOR` is
 set, output is plain text.
+
+For non-stdout destinations, use `StyledText::render` with a `RenderTarget` so
+`Auto` mode evaluates the real output target:
+
+```rust
+use colored_text::{Colorize, RenderTarget};
+
+let warning = "Warning".yellow().bold();
+
+eprintln!("{}", warning.render(RenderTarget::Stderr));
+
+let captured = warning.render(RenderTarget::Terminal(false));
+assert_eq!(captured, "Warning");
+```
 
 ## Terminal Compatibility
 

@@ -1,6 +1,7 @@
 use crate::color::{ColorSpec, NamedColor};
 use crate::config::{
-    get_terminal_override_for_tests, set_terminal_override_for_tests, should_colorize,
+    get_stderr_terminal_override_for_tests, get_terminal_override_for_tests,
+    set_stderr_terminal_override_for_tests, set_terminal_override_for_tests, should_colorize,
 };
 use crate::*;
 use rstest::*;
@@ -16,6 +17,7 @@ struct TestStateGuard {
     previous_mode: ColorMode,
     previous_no_color: Option<OsString>,
     previous_terminal_override: Option<bool>,
+    previous_stderr_terminal_override: Option<bool>,
 }
 
 impl TestStateGuard {
@@ -42,6 +44,7 @@ impl TestStateGuard {
         let previous_mode = ColorizeConfig::color_mode();
         let previous_no_color = env::var_os("NO_COLOR");
         let previous_terminal_override = get_terminal_override_for_tests();
+        let previous_stderr_terminal_override = get_stderr_terminal_override_for_tests();
 
         match no_color {
             Some(value) => env::set_var("NO_COLOR", value),
@@ -55,6 +58,7 @@ impl TestStateGuard {
             previous_mode,
             previous_no_color,
             previous_terminal_override,
+            previous_stderr_terminal_override,
         }
     }
 }
@@ -63,6 +67,7 @@ impl Drop for TestStateGuard {
     fn drop(&mut self) {
         ColorizeConfig::set_color_mode(self.previous_mode);
         set_terminal_override_for_tests(self.previous_terminal_override);
+        set_stderr_terminal_override_for_tests(self.previous_stderr_terminal_override);
         match self.previous_no_color.as_ref() {
             Some(value) => env::set_var("NO_COLOR", value),
             None => env::remove_var("NO_COLOR"),
@@ -410,9 +415,73 @@ fn test_color_mode_auto_uses_real_stdout_terminal_state_without_override() {
 }
 
 #[test]
+fn test_render_auto_uses_real_stderr_terminal_state_without_override() {
+    let _guard = TestStateGuard::with_state(ColorMode::Auto, None, None);
+    set_stderr_terminal_override_for_tests(None);
+
+    let expected = if std::io::stderr().is_terminal() {
+        "\x1b[31mtest\x1b[0m"
+    } else {
+        "test"
+    };
+
+    assert_eq!("test".red().render(RenderTarget::Stderr), expected);
+}
+
+#[test]
 fn test_color_mode_auto_enables_color_for_terminal_output() {
     let _guard = TestStateGuard::auto_terminal(true);
     assert_eq!("test".red().to_string(), "\x1b[31mtest\x1b[0m");
+}
+
+#[test]
+fn test_render_auto_uses_stderr_terminal_state() {
+    let _guard = TestStateGuard::with_state(ColorMode::Auto, None, Some(false));
+    set_stderr_terminal_override_for_tests(Some(true));
+    assert_eq!(
+        "test".red().render(RenderTarget::Stderr),
+        "\x1b[31mtest\x1b[0m"
+    );
+}
+
+#[test]
+fn test_render_auto_uses_custom_terminal_state() {
+    let _guard = TestStateGuard::with_state(ColorMode::Auto, None, Some(true));
+    assert_eq!("test".red().render(RenderTarget::Terminal(false)), "test");
+    assert_eq!(
+        "test".red().render(RenderTarget::Terminal(true)),
+        "\x1b[31mtest\x1b[0m"
+    );
+}
+
+#[test]
+fn test_render_always_ignores_target_terminal_state() {
+    let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+    assert_eq!(
+        "test".red().render(RenderTarget::Terminal(false)),
+        "\x1b[31mtest\x1b[0m"
+    );
+}
+
+#[test]
+fn test_render_never_disables_color_for_all_targets() {
+    let _guard = TestStateGuard::colors_enabled(ColorMode::Never);
+    assert_eq!("test".red().render(RenderTarget::Stdout), "test");
+    assert_eq!("test".red().render(RenderTarget::Stderr), "test");
+    assert_eq!("test".red().render(RenderTarget::Terminal(true)), "test");
+}
+
+#[test]
+fn test_render_respects_no_color_in_always_mode() {
+    let _guard = TestStateGuard::no_color(ColorMode::Always);
+    assert_eq!("test".red().render(RenderTarget::Terminal(true)), "test");
+}
+
+#[test]
+fn test_display_remains_stdout_based_in_auto_mode() {
+    let _guard = TestStateGuard::with_state(ColorMode::Auto, None, Some(false));
+    set_stderr_terminal_override_for_tests(Some(true));
+    assert_eq!("test".red().to_string(), "test");
 }
 
 #[test]
