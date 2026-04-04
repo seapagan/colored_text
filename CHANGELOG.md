@@ -5,6 +5,18 @@ project since the first release.
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0](https://github.com/seapagan/colored_text/releases/tag/0.4.0) (2026-04-04)
+
+**New Features**
+
+- Feat: support shorthand hex colors ([#7](https://github.com/seapagan/colored_text/pull/7)) by [seapagan](https://github.com/seapagan)
+- Feat: add writer-aware rendering ([#6](https://github.com/seapagan/colored_text/pull/6)) by [seapagan](https://github.com/seapagan)
+
+**Refactoring**
+
+- Feat: modernize color composition and crate internals ([#5](https://github.com/seapagan/colored_text/pull/5)) by [seapagan](https://github.com/seapagan)
+
+[`Full Changelog`](https://github.com/seapagan/colored_text/compare/0.3.0...0.4.0) | [`Diff`](https://github.com/seapagan/colored_text/compare/0.3.0...0.4.0.diff) | [`Patch`](https://github.com/seapagan/colored_text/compare/0.3.0...0.4.0.patch)
 
 ## [0.3.0](https://github.com/seapagan/colored_text/releases/tag/0.3.0) (2025-02-13)
 
