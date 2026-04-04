@@ -1,3 +1,8 @@
 /target
 .changelog_generator.toml
 mutants.out*
+
+# AI stuff
+.codex
+AGENTS.md
+CLAUDE.md
