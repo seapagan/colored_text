@@ -13,13 +13,14 @@ Rust.
 - Support for basic colors, bright colors, and background colors
 - Text styling (bold, dim, italic, underline, inverse, strikethrough)
 - RGB and HEX color support for both text and background
-- Style chaining
+- Composed style chaining with predictable override behavior
 - Works with string literals, owned strings, and format macros
 - Zero dependencies
 - Supports the `NO_COLOR` environment variable - if this is set, all colors are
   disabled and the text is returned uncolored
+- Supports explicit runtime color modes: `Auto`, `Always`, and `Never`
 - Detects if the output is NOT going to a terminal (e.g. is going to a file or a
-  pipe) and disables colors if so (this check can also be disabled)
+  pipe) and disables colors in `Auto` mode
 - Complete documentation and examples
 
 ## Installation
@@ -62,7 +63,10 @@ println!("{}", "Italic blue on yellow".blue().italic().on_yellow());
 
 // Using with format! macro
 let name = "World";
-println!("{}", format!("Hello, {}!", name.blue().bold()));
+println!("Hello, {}!", name.blue().bold());
+
+// Removing all styles
+println!("{}", "Back to plain text".red().bold().clear());
 ```
 
 ## Available Methods
@@ -130,8 +134,8 @@ println!("{}", format!("Hello, {}!", name.blue().bold()));
 - RGB values must be in range 0-255 (enforced at compile time via `u8` type)
 - Attempting to use RGB values > 255 will result in a compile error
 - Hex color codes can be provided with or without the '#' prefix
-- Invalid hex codes (wrong length, invalid characters) will result in uncolored
-  text
+- Invalid hex codes (wrong length, invalid characters) will result in plain
+  unstyled text
 - All color methods are guaranteed to return a valid string, never panicking
 
 ```rust
@@ -169,32 +173,30 @@ std::env::set_var("NO_COLOR", "1");
 println!("{}", "Red text".red()); // Prints without color
 ```
 
-## Terminal Detection Configuration
+## Runtime Color Modes
 
-By default, this library checks if the output is going to a terminal and
-disables colors when it's not (e.g., when piping output to a file). This
-behavior can be controlled using `ColorizeConfig`:
+By default, this library uses `ColorMode::Auto`: it checks if stdout is going to
+a terminal and disables colors when it is not. Applications can override that
+behavior explicitly using `ColorizeConfig`:
 
 ```rust
-use colored_text::{Colorize, ColorizeConfig};
+use colored_text::{ColorMode, Colorize, ColorizeConfig};
 
-// Disable terminal detection (colors will be enabled regardless of terminal status)
-ColorizeConfig::set_terminal_check(false);
+ColorizeConfig::set_color_mode(ColorMode::Always);
 println!("{}", "Always colored".red());
 
-// Re-enable terminal detection (default behavior)
-ColorizeConfig::set_terminal_check(true);
-println!("{}", "Only colored in terminal".red());
+ColorizeConfig::set_color_mode(ColorMode::Never);
+println!("{}", "Never colored".red());
+
+ColorizeConfig::set_color_mode(ColorMode::Auto);
+println!("{}", "Colored only in terminals".red());
 ```
 
-This is particularly useful in test environments where you might want to
-force-enable colors regardless of the terminal status. The configuration is
-thread-local, making it safe to use in parallel tests without affecting other
-threads.
+The runtime configuration is thread-local. This is useful in tests or
+applications that want to force color on or off for a specific execution path.
 
-Note: Even when terminal detection is disabled, the `NO_COLOR` environment
-variable still takes precedence - if it's set, colors will be disabled
-regardless of this setting.
+`NO_COLOR` still takes precedence in `Auto` and `Always` mode. If `NO_COLOR` is
+set, output is plain text.
 
 ## Terminal Compatibility
 
