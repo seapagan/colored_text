@@ -5,7 +5,19 @@ project since the first release.
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.4.0](https://github.com/seapagan/colored_text/releases/tag/0.4.0) (2026-04-04)
+## [0.4.1](https://github.com/seapagan/colored_text/releases/tag/0.4.1) (2026-04-04)
+
+**Documentation**
+
+- Correct the install section version in README.md ([#8](https://github.com/seapagan/colored_text/pull/8)) by [seapagan](https://github.com/seapagan)
+
+[`Full Changelog`](https://github.com/seapagan/colored_text/compare/0.4.0...0.4.1) | [`Diff`](https://github.com/seapagan/colored_text/compare/0.4.0...0.4.1.diff) | [`Patch`](https://github.com/seapagan/colored_text/compare/0.4.0...0.4.1.patch)
+
+## [0.4.0](https://github.com/seapagan/colored_text/releases/tag/0.4.0) (2026-04-04) **[`YANKED`]**
+
+**This release has been removed for the following reason and should not be used:**
+
+- README was not updated for this version, so the install command was wrong.
 
 **New Features**
 
