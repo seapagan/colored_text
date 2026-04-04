@@ -194,7 +194,9 @@ fn test_rgb_colors(#[case] r: u8, #[case] g: u8, #[case] b: u8) {
 
 #[rstest]
 #[case("#ff8000", 255, 128, 0)]
+#[case("#f80", 255, 136, 0)]
 #[case("#00ff00", 0, 255, 0)]
+#[case("0f8", 0, 255, 136)]
 #[case("#808080", 128, 128, 128)]
 #[case("#000000", 0, 0, 0)]
 #[case("#ffffff", 255, 255, 255)]
@@ -224,6 +226,8 @@ fn test_hex_colors(#[case] hex: &str, #[case] r: u8, #[case] g: u8, #[case] b: u
 #[rstest]
 #[case("invalid")]
 #[case("#12")]
+#[case("#1234")]
+#[case("#12345678")]
 #[case("not-a-color")]
 #[case("#12345")]
 #[case("#1234567")]

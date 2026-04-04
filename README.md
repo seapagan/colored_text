@@ -135,7 +135,8 @@ println!("{}", "Back to plain text".red().bold().clear());
 
 - RGB values must be in range 0-255 (enforced at compile time via `u8` type)
 - Attempting to use RGB values > 255 will result in a compile error
-- Hex color codes can be provided with or without the '#' prefix
+- Hex color codes can be provided with or without the '#' prefix in either
+  3-character shorthand or 6-character full form
 - Invalid hex codes (wrong length, invalid characters) will result in plain
   unstyled text
 - All color methods are guaranteed to return a valid string, never panicking
@@ -153,10 +154,11 @@ println!("{}", "Gray".hsl(0.0, 0.0, 50.0));      // 50% gray
 // Hex colors work with or without #
 println!("{}", "Hex color".hex("#ff8000"));
 println!("{}", "Also valid".hex("ff8000"));
+println!("{}", "Shorthand".hex("#f80"));
 
 // Invalid hex codes return uncolored text
 println!("{}", "Invalid".hex("xyz")); // Returns uncolored text
-println!("{}", "Too short".hex("#f8")); // Returns uncolored text
+println!("{}", "Wrong length".hex("#1234")); // Returns uncolored text
 ```
 
 ## NO_COLOR Support

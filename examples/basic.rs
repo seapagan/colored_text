@@ -45,6 +45,9 @@ fn main() {
     println!("{}", "HSL Background".on_hsl(200.0, 100.0, 50.0));
 
     println!("{}", "Hex color (#ff8000)".hex("#ff8000"));
+    println!("{}", "Hex without # (ff8000)".hex("ff8000"));
+    println!("{}", "Hex shorthand (#f80)".hex("#f80"));
+    println!("{}", "Hex shorthand without # (f80)".hex("f80"));
     println!("{}", "Hex background (#0080ff)".on_hex("#0080ff"));
 
     // Chaining styles
