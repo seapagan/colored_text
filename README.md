@@ -63,7 +63,7 @@ println!("{}", "Italic blue on yellow".blue().italic().on_yellow());
 
 // Using with format! macro
 let name = "World";
-println!("{}", format!("Hello, {}!", name.blue().bold()));
+println!("Hello, {}!", name.blue().bold());
 
 // Removing all styles
 println!("{}", "Back to plain text".red().bold().clear());
