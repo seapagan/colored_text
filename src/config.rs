@@ -88,3 +88,8 @@ fn stdout_is_terminal() -> bool {
 pub(crate) fn set_terminal_override_for_tests(value: Option<bool>) {
     TERMINAL_OVERRIDE.with(|override_value| *override_value.borrow_mut() = value);
 }
+
+#[cfg(test)]
+pub(crate) fn get_terminal_override_for_tests() -> Option<bool> {
+    TERMINAL_OVERRIDE.with(|override_value| *override_value.borrow())
+}

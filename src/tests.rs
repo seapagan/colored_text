@@ -1,5 +1,7 @@
 use crate::color::{ColorSpec, NamedColor};
-use crate::config::{set_terminal_override_for_tests, should_colorize};
+use crate::config::{
+    get_terminal_override_for_tests, set_terminal_override_for_tests, should_colorize,
+};
 use crate::*;
 use rstest::*;
 use std::env;
@@ -39,7 +41,7 @@ impl TestStateGuard {
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         let previous_mode = ColorizeConfig::color_mode();
         let previous_no_color = env::var_os("NO_COLOR");
-        let previous_terminal_override = None;
+        let previous_terminal_override = get_terminal_override_for_tests();
 
         match no_color {
             Some(value) => env::set_var("NO_COLOR", value),
