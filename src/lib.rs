@@ -48,7 +48,8 @@
 //!
 //! - RGB values must be in range 0-255 (enforced at compile time via `u8` type)
 //! - Attempting to use RGB values > 255 will result in a compile error
-//! - Hex color codes can be provided with or without the `#` prefix
+//! - Hex color codes can be provided with or without the `#` prefix in 3-digit
+//!   shorthand or 6-digit full form
 //! - Invalid hex codes (wrong length or invalid characters) return plain
 //!   unstyled text
 //! - All color methods are guaranteed to return a valid string, never panicking
@@ -59,10 +60,11 @@
 //! // Valid hex codes (with or without #)
 //! println!("{}", "Valid hex".hex("#ff8000"));
 //! println!("{}", "Also valid".hex("ff8000"));
+//! println!("{}", "Shorthand".hex("#f80"));
 //!
 //! // Invalid hex codes return plain text
 //! println!("{}", "Invalid hex".hex("xyz")); // Returns plain text
-//! println!("{}", "Too short".hex("#f8")); // Returns plain text
+//! println!("{}", "Wrong length".hex("#1234")); // Returns plain text
 //! ```
 //!
 //! # Runtime Color Control
