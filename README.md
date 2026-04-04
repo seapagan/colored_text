@@ -31,7 +31,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-colored_text = "0.3.0"
+colored_text = "0.4.1"
 ```
 
 ## Usage
