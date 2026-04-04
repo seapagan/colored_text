@@ -1,4 +1,4 @@
-use colored_text::Colorize;
+use colored_text::{ColorMode, Colorize, ColorizeConfig};
 
 fn main() {
     // Basic colors
@@ -79,9 +79,11 @@ fn main() {
         "important".yellow().underline()
     );
 
-    // Disabling colors
-    println!("\nDisabling colors by setting NO_COLOR environment variable:");
-    std::env::set_var("NO_COLOR", "1");
-    println!("{}", "This text should have no color".red().bold());
-    std::env::remove_var("NO_COLOR");
+    // Runtime color modes
+    println!("\nRuntime color modes:");
+    ColorizeConfig::set_color_mode(ColorMode::Always);
+    println!("{}", "Forced color".red().bold());
+    ColorizeConfig::set_color_mode(ColorMode::Never);
+    println!("{}", "Forced plain output".red().bold());
+    ColorizeConfig::set_color_mode(ColorMode::Auto);
 }

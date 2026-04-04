@@ -1,8 +1,13 @@
 //! A library for adding colors and styles to terminal text output.
 //!
-//! This library provides a simple and intuitive way to add colors and styles to text
-//! in terminal applications. It works with both string literals and owned strings,
-//! and supports various text colors, background colors, and text styles.
+//! This library provides a simple and intuitive way to add colors and styles to
+//! text in terminal applications. It works with both string literals and owned
+//! strings, and supports various text colors, background colors, and text
+//! styles.
+//!
+//! Styling is composed before rendering, so chained calls behave predictably:
+//! the most recent foreground/background color wins, text styles accumulate, and
+//! ANSI escape codes are emitted only once when the styled value is displayed.
 //!
 //! # Examples
 //!
@@ -23,6 +28,9 @@
 //! // RGB and Hex colors
 //! println!("{}", "RGB color".rgb(255, 128, 0));
 //! println!("{}", "Hex color".hex("#ff8000"));
+//!
+//! // Clearing styles
+//! println!("{}", "Plain text".red().bold().clear());
 //! ```
 //!
 //! # Features
@@ -31,16 +39,18 @@
 //! - Background colors
 //! - Bright color variants
 //! - Text styles (bold, dim, italic, underline)
-//! - RGB and Hex color support
-//! - Style chaining
+//! - RGB, HSL, and Hex color support
+//! - Composed style chaining
 //! - Works with format! macro
+//! - Explicit runtime color modes
 //!
 //! # Input Handling
 //!
 //! - RGB values must be in range 0-255 (enforced at compile time via `u8` type)
 //! - Attempting to use RGB values > 255 will result in a compile error
-//! - Hex color codes can be provided with or without the '#' prefix
-//! - Invalid hex codes (wrong length, invalid characters) will result in uncolored text
+//! - Hex color codes can be provided with or without the `#` prefix
+//! - Invalid hex codes (wrong length or invalid characters) return plain
+//!   unstyled text
 //! - All color methods are guaranteed to return a valid string, never panicking
 //!
 //! ```rust
@@ -50,24 +60,59 @@
 //! println!("{}", "Valid hex".hex("#ff8000"));
 //! println!("{}", "Also valid".hex("ff8000"));
 //!
-//! // Invalid hex codes return uncolored text
-//! println!("{}", "Invalid hex".hex("xyz")); // Returns uncolored text
-//! println!("{}", "Too short".hex("#f8")); // Returns uncolored text
+//! // Invalid hex codes return plain text
+//! println!("{}", "Invalid hex".hex("xyz")); // Returns plain text
+//! println!("{}", "Too short".hex("#f8")); // Returns plain text
+//! ```
+//!
+//! # Runtime Color Control
+//!
+//! The crate supports three runtime modes via [`ColorMode`]:
+//!
+//! - [`ColorMode::Auto`] enables styling only when stdout is a terminal
+//! - [`ColorMode::Always`] forces styling on even when stdout is not a terminal
+//! - [`ColorMode::Never`] disables styling completely
+//!
+//! The `NO_COLOR` environment variable disables styling in `Auto` and
+//! `Always`.
+//!
+//! ```rust
+//! use colored_text::{ColorMode, Colorize, ColorizeConfig};
+//!
+//! ColorizeConfig::set_color_mode(ColorMode::Always);
+//! println!("{}", "Always colored".red());
+//!
+//! ColorizeConfig::set_color_mode(ColorMode::Never);
+//! println!("{}", "Never colored".red());
 //! ```
 //!
 //! # Note
 //!
-//! Colors and styles are implemented using ANSI escape codes, which are supported
-//! by most modern terminals. If your terminal doesn't support ANSI escape codes,
-//! the text will be displayed without styling.
+//! Colors and styles are implemented using ANSI escape codes, which are
+//! supported by most modern terminals. If your terminal does not support ANSI
+//! escape codes, or if color output is disabled by policy, the text is
+//! displayed without styling.
 
 use std::cell::RefCell;
+use std::fmt::{self, Display};
 use std::io::IsTerminal;
 
-/// Configuration for controlling terminal detection behavior.
+/// Runtime color policy for rendered output.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum ColorMode {
+    /// Enable styling only when stdout is a terminal.
+    #[default]
+    Auto,
+    /// Always emit styling, even when stdout is not a terminal.
+    Always,
+    /// Never emit styling.
+    Never,
+}
+
+/// Configuration for controlling runtime color behavior.
 #[derive(Clone, Debug)]
 pub struct ColorizeConfig {
-    check_terminal: bool,
+    color_mode: ColorMode,
 }
 
 thread_local! {
@@ -77,58 +122,58 @@ thread_local! {
 impl Default for ColorizeConfig {
     fn default() -> Self {
         Self {
-            check_terminal: true, // By default, we check the terminal
+            color_mode: ColorMode::Auto,
         }
     }
 }
 
 impl ColorizeConfig {
-    /// Set whether to check if output is to a terminal.
-    ///
-    /// - If true (default), colors will be disabled when not outputting to a terminal
-    /// - If false, terminal detection is skipped and colors are enabled (unless NO_COLOR is set)
-    pub fn set_terminal_check(check: bool) {
-        CONFIG.with(|c| c.borrow_mut().check_terminal = check);
+    /// Set the runtime color policy for the current thread.
+    pub fn set_color_mode(mode: ColorMode) {
+        CONFIG.with(|config| config.borrow_mut().color_mode = mode);
     }
 
-    /// Get the current configuration for this thread
-    fn current() -> Self {
-        CONFIG.with(|c| c.borrow().clone())
+    /// Get the runtime color policy for the current thread.
+    pub fn color_mode() -> ColorMode {
+        CONFIG.with(|config| config.borrow().color_mode)
+    }
+
+    /// Compatibility shim for the previous API.
+    #[deprecated(note = "use ColorizeConfig::set_color_mode(ColorMode) instead")]
+    pub fn set_terminal_check(check: bool) {
+        let mode = if check {
+            ColorMode::Auto
+        } else {
+            ColorMode::Always
+        };
+        Self::set_color_mode(mode);
     }
 }
 
-/// Check if colors should be applied based on:
-/// - NO_COLOR environment variable (returns false if set to any value)
-/// - Whether stdout is connected to a terminal (if terminal checking is enabled)
-///
-/// Terminal checking can be disabled using `ColorizeConfig::set_terminal_check(false)`,
-/// in which case colors will be enabled regardless of terminal status (unless NO_COLOR is set).
 fn should_colorize() -> bool {
-    // Always check NO_COLOR env var
-    if std::env::var("NO_COLOR").is_ok() {
-        return false;
+    match ColorizeConfig::color_mode() {
+        ColorMode::Never => false,
+        ColorMode::Always => std::env::var_os("NO_COLOR").is_none(),
+        ColorMode::Auto => {
+            std::env::var_os("NO_COLOR").is_none() && std::io::stdout().is_terminal()
+        }
     }
-
-    // Only check terminal if configured to do so
-    !ColorizeConfig::current().check_terminal || std::io::stdout().is_terminal()
 }
 
 /// Convert HSL color values to RGB.
-/// - h: Hue (0-360 degrees)
-/// - s: Saturation (0-100 percent)
-/// - l: Lightness (0-100 percent)
+///
+/// - `h`: Hue in degrees
+/// - `s`: Saturation percentage
+/// - `l`: Lightness percentage
 fn hsl_to_rgb(h: f32, s: f32, l: f32) -> (u8, u8, u8) {
-    // Normalize to 0-1
     let h = h / 360.0;
     let s = s / 100.0;
     let l = l / 100.0;
 
-    // Calculate intermediate values
     let c = (1.0 - (2.0 * l - 1.0).abs()) * s;
     let x = c * (1.0 - ((h * 6.0) % 2.0 - 1.0).abs());
     let m = l - c / 2.0;
 
-    // Convert to RGB based on hue segment
     let (r, g, b) = match (h * 6.0) as i32 {
         0 => (c, x, 0.0),
         1 => (x, c, 0.0),
@@ -138,7 +183,6 @@ fn hsl_to_rgb(h: f32, s: f32, l: f32) -> (u8, u8, u8) {
         _ => (c, 0.0, x),
     };
 
-    // Convert to 0-255 range
     (
         ((r + m) * 255.0) as u8,
         ((g + m) * 255.0) as u8,
@@ -146,11 +190,6 @@ fn hsl_to_rgb(h: f32, s: f32, l: f32) -> (u8, u8, u8) {
     )
 }
 
-/// Helper function to convert a hex color string to RGB values.
-/// Returns None for invalid hex codes:
-/// - Must be 6 characters (not counting optional # prefix)
-/// - Must contain valid hex digits (0-9, a-f, A-F)
-/// - Invalid hex codes will return None, resulting in uncolored text
 fn hex_to_rgb(hex: &str) -> Option<(u8, u8, u8)> {
     let hex = hex.trim_start_matches('#');
     if hex.len() != 6 {
@@ -164,259 +203,560 @@ fn hex_to_rgb(hex: &str) -> Option<(u8, u8, u8)> {
     Some((r, g, b))
 }
 
-/// Trait for adding color and style methods to strings.
-///
-/// This trait provides methods to colorize and style text for terminal output.
-/// It can be used with both string literals and owned strings.
-pub trait Colorize {
-    /// Returns a colored version of the string
-    /// Internal method to apply ANSI color codes to text.
-    /// This is used by all other coloring methods.
-    fn colorize(&self, color_code: &str) -> String;
-
-    // Basic colors
-    /// Colors the text red using ANSI escape codes.
-    fn red(&self) -> String;
-    /// Colors the text green using ANSI escape codes.
-    fn green(&self) -> String;
-    /// Colors the text yellow using ANSI escape codes.
-    fn yellow(&self) -> String;
-    /// Colors the text blue using ANSI escape codes.
-    fn blue(&self) -> String;
-    /// Colors the text magenta using ANSI escape codes.
-    fn magenta(&self) -> String;
-    /// Colors the text cyan using ANSI escape codes.
-    fn cyan(&self) -> String;
-    /// Colors the text white using ANSI escape codes.
-    fn white(&self) -> String;
-    /// Colors the text black using ANSI escape codes.
-    fn black(&self) -> String;
-
-    // Bright colors
-    /// Colors the text bright red using ANSI escape codes.
-    fn bright_red(&self) -> String;
-    /// Colors the text bright green using ANSI escape codes.
-    fn bright_green(&self) -> String;
-    /// Colors the text bright yellow using ANSI escape codes.
-    fn bright_yellow(&self) -> String;
-    /// Colors the text bright blue using ANSI escape codes.
-    fn bright_blue(&self) -> String;
-    /// Colors the text bright magenta using ANSI escape codes.
-    fn bright_magenta(&self) -> String;
-    /// Colors the text bright cyan using ANSI escape codes.
-    fn bright_cyan(&self) -> String;
-    /// Colors the text bright white using ANSI escape codes.
-    fn bright_white(&self) -> String;
-
-    // Styles
-    /// Makes the text bold using ANSI escape codes.
-    fn bold(&self) -> String;
-    /// Makes the text dimmed using ANSI escape codes.
-    fn dim(&self) -> String;
-    /// Makes the text italic using ANSI escape codes.
-    /// Note: Not all terminals support italic text.
-    fn italic(&self) -> String;
-    /// Underlines the text using ANSI escape codes.
-    fn underline(&self) -> String;
-    /// Inverts the text and background colors using ANSI escape codes.
-    fn inverse(&self) -> String;
-    /// Adds a strikethrough to the text using ANSI escape codes.
-    /// Note: Not all terminals support strikethrough.
-    fn strikethrough(&self) -> String;
-
-    // Background colors
-    /// Sets the background color to red using ANSI escape codes.
-    fn on_red(&self) -> String;
-    /// Sets the background color to green using ANSI escape codes.
-    fn on_green(&self) -> String;
-    /// Sets the background color to yellow using ANSI escape codes.
-    fn on_yellow(&self) -> String;
-    /// Sets the background color to blue using ANSI escape codes.
-    fn on_blue(&self) -> String;
-    /// Sets the background color to magenta using ANSI escape codes.
-    fn on_magenta(&self) -> String;
-    /// Sets the background color to cyan using ANSI escape codes.
-    fn on_cyan(&self) -> String;
-    /// Sets the background color to white using ANSI escape codes.
-    fn on_white(&self) -> String;
-    /// Sets the background color to black using ANSI escape codes.
-    fn on_black(&self) -> String;
-
-    // RGB, HSL, and Hex color support
-    /// Set text color using RGB values (0-255, compile-time enforced)
-    fn rgb(&self, r: u8, g: u8, b: u8) -> String;
-    /// Set background color using RGB values (0-255, compile-time enforced)
-    fn on_rgb(&self, r: u8, g: u8, b: u8) -> String;
-    /// Set text color using HSL values (hue: 0-360, saturation: 0-100, lightness: 0-100)
-    fn hsl(&self, h: f32, s: f32, l: f32) -> String;
-    /// Set background color using HSL values (hue: 0-360, saturation: 0-100, lightness: 0-100)
-    fn on_hsl(&self, h: f32, s: f32, l: f32) -> String;
-    /// Set text color using hex code (e.g., "#ff8000" or "ff8000").
-    /// Returns uncolored text if the hex code is invalid.
-    fn hex(&self, hex: &str) -> String;
-    /// Set background color using hex code (e.g., "#ff8000" or "ff8000").
-    /// Returns uncolored text if the hex code is invalid.
-    fn on_hex(&self, hex: &str) -> String;
-
-    /// Removes all color and style formatting from the text.
-    fn clear(&self) -> String;
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum NamedColor {
+    Black,
+    Red,
+    Green,
+    Yellow,
+    Blue,
+    Magenta,
+    Cyan,
+    White,
+    BrightRed,
+    BrightGreen,
+    BrightYellow,
+    BrightBlue,
+    BrightMagenta,
+    BrightCyan,
+    BrightWhite,
 }
 
-impl<T: std::fmt::Display> Colorize for T {
-    fn colorize(&self, color_code: &str) -> String {
-        if !should_colorize() {
-            return self.to_string();
+impl NamedColor {
+    fn foreground_code(self) -> &'static str {
+        match self {
+            Self::Black => "30",
+            Self::Red => "31",
+            Self::Green => "32",
+            Self::Yellow => "33",
+            Self::Blue => "34",
+            Self::Magenta => "35",
+            Self::Cyan => "36",
+            Self::White => "37",
+            Self::BrightRed => "91",
+            Self::BrightGreen => "92",
+            Self::BrightYellow => "93",
+            Self::BrightBlue => "94",
+            Self::BrightMagenta => "95",
+            Self::BrightCyan => "96",
+            Self::BrightWhite => "97",
         }
-        format!("\x1b[{}m{}\x1b[0m", color_code, self)
     }
 
-    fn red(&self) -> String {
-        self.colorize("31")
-    }
-    fn green(&self) -> String {
-        self.colorize("32")
-    }
-    fn yellow(&self) -> String {
-        self.colorize("33")
-    }
-    fn blue(&self) -> String {
-        self.colorize("34")
-    }
-    fn magenta(&self) -> String {
-        self.colorize("35")
-    }
-    fn cyan(&self) -> String {
-        self.colorize("36")
-    }
-    fn white(&self) -> String {
-        self.colorize("37")
-    }
-    fn black(&self) -> String {
-        self.colorize("30")
-    }
-
-    fn bright_red(&self) -> String {
-        self.colorize("91")
-    }
-    fn bright_green(&self) -> String {
-        self.colorize("92")
-    }
-    fn bright_yellow(&self) -> String {
-        self.colorize("93")
-    }
-    fn bright_blue(&self) -> String {
-        self.colorize("94")
-    }
-    fn bright_magenta(&self) -> String {
-        self.colorize("95")
-    }
-    fn bright_cyan(&self) -> String {
-        self.colorize("96")
-    }
-    fn bright_white(&self) -> String {
-        self.colorize("97")
-    }
-
-    fn bold(&self) -> String {
-        self.colorize("1")
-    }
-    fn dim(&self) -> String {
-        self.colorize("2")
-    }
-    fn italic(&self) -> String {
-        self.colorize("3")
-    }
-    fn underline(&self) -> String {
-        self.colorize("4")
-    }
-
-    fn inverse(&self) -> String {
-        self.colorize("7")
-    }
-
-    fn strikethrough(&self) -> String {
-        self.colorize("9")
-    }
-
-    fn on_red(&self) -> String {
-        self.colorize("41")
-    }
-    fn on_green(&self) -> String {
-        self.colorize("42")
-    }
-    fn on_yellow(&self) -> String {
-        self.colorize("43")
-    }
-    fn on_blue(&self) -> String {
-        self.colorize("44")
-    }
-    fn on_magenta(&self) -> String {
-        self.colorize("45")
-    }
-    fn on_cyan(&self) -> String {
-        self.colorize("46")
-    }
-    fn on_white(&self) -> String {
-        self.colorize("47")
-    }
-    fn on_black(&self) -> String {
-        self.colorize("40")
-    }
-
-    fn rgb(&self, r: u8, g: u8, b: u8) -> String {
-        if !should_colorize() {
-            return self.to_string();
+    fn background_code(self) -> &'static str {
+        match self {
+            Self::Black => "40",
+            Self::Red => "41",
+            Self::Green => "42",
+            Self::Yellow => "43",
+            Self::Blue => "44",
+            Self::Magenta => "45",
+            Self::Cyan => "46",
+            Self::White => "47",
+            Self::BrightRed => "101",
+            Self::BrightGreen => "102",
+            Self::BrightYellow => "103",
+            Self::BrightBlue => "104",
+            Self::BrightMagenta => "105",
+            Self::BrightCyan => "106",
+            Self::BrightWhite => "107",
         }
-        format!("\x1b[38;2;{};{};{}m{}\x1b[0m", r, g, b, self)
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum ColorSpec {
+    Named(NamedColor),
+    Rgb(u8, u8, u8),
+}
+
+impl ColorSpec {
+    fn foreground_code(&self) -> String {
+        match self {
+            Self::Named(color) => color.foreground_code().to_string(),
+            Self::Rgb(r, g, b) => format!("38;2;{};{};{}", r, g, b),
+        }
     }
 
-    fn on_rgb(&self, r: u8, g: u8, b: u8) -> String {
-        if !should_colorize() {
-            return self.to_string();
+    fn background_code(&self) -> String {
+        match self {
+            Self::Named(color) => color.background_code().to_string(),
+            Self::Rgb(r, g, b) => format!("48;2;{};{};{}", r, g, b),
         }
-        format!("\x1b[48;2;{};{};{}m{}\x1b[0m", r, g, b, self)
+    }
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+struct StyleFlags {
+    bold: bool,
+    dim: bool,
+    italic: bool,
+    underline: bool,
+    inverse: bool,
+    strikethrough: bool,
+}
+
+impl StyleFlags {
+    fn sgr_codes(&self) -> Vec<String> {
+        let mut codes = Vec::new();
+        if self.bold {
+            codes.push("1".to_string());
+        }
+        if self.dim {
+            codes.push("2".to_string());
+        }
+        if self.italic {
+            codes.push("3".to_string());
+        }
+        if self.underline {
+            codes.push("4".to_string());
+        }
+        if self.inverse {
+            codes.push("7".to_string());
+        }
+        if self.strikethrough {
+            codes.push("9".to_string());
+        }
+        codes
+    }
+}
+
+/// A styled text value that composes colors and text attributes before render.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct StyledText {
+    text: String,
+    foreground: Option<ColorSpec>,
+    background: Option<ColorSpec>,
+    styles: StyleFlags,
+    raw_codes: Vec<String>,
+}
+
+impl StyledText {
+    /// Create a plain styled value from text.
+    pub fn plain(text: impl Into<String>) -> Self {
+        Self {
+            text: text.into(),
+            foreground: None,
+            background: None,
+            styles: StyleFlags::default(),
+            raw_codes: Vec::new(),
+        }
     }
 
-    fn hsl(&self, h: f32, s: f32, l: f32) -> String {
-        if !should_colorize() {
-            return self.to_string();
+    /// Return the plain, unstyled text payload.
+    pub fn plain_text(&self) -> &str {
+        &self.text
+    }
+
+    fn with_foreground(mut self, color: ColorSpec) -> Self {
+        self.foreground = Some(color);
+        self
+    }
+
+    fn with_background(mut self, color: ColorSpec) -> Self {
+        self.background = Some(color);
+        self
+    }
+
+    fn set_style(mut self, update: impl FnOnce(&mut StyleFlags)) -> Self {
+        update(&mut self.styles);
+        self
+    }
+
+    fn active_codes(&self) -> Vec<String> {
+        let mut codes = self.raw_codes.clone();
+        codes.extend(self.styles.sgr_codes());
+
+        if let Some(foreground) = &self.foreground {
+            codes.push(foreground.foreground_code());
         }
+
+        if let Some(background) = &self.background {
+            codes.push(background.background_code());
+        }
+
+        codes
+    }
+
+    /// Apply a raw ANSI SGR code sequence to the value.
+    pub fn colorize(mut self, color_code: &str) -> Self {
+        if !color_code.trim().is_empty() {
+            self.raw_codes.push(color_code.to_string());
+        }
+        self
+    }
+
+    pub fn red(self) -> Self {
+        self.with_foreground(ColorSpec::Named(NamedColor::Red))
+    }
+
+    pub fn green(self) -> Self {
+        self.with_foreground(ColorSpec::Named(NamedColor::Green))
+    }
+
+    pub fn yellow(self) -> Self {
+        self.with_foreground(ColorSpec::Named(NamedColor::Yellow))
+    }
+
+    pub fn blue(self) -> Self {
+        self.with_foreground(ColorSpec::Named(NamedColor::Blue))
+    }
+
+    pub fn magenta(self) -> Self {
+        self.with_foreground(ColorSpec::Named(NamedColor::Magenta))
+    }
+
+    pub fn cyan(self) -> Self {
+        self.with_foreground(ColorSpec::Named(NamedColor::Cyan))
+    }
+
+    pub fn white(self) -> Self {
+        self.with_foreground(ColorSpec::Named(NamedColor::White))
+    }
+
+    pub fn black(self) -> Self {
+        self.with_foreground(ColorSpec::Named(NamedColor::Black))
+    }
+
+    pub fn bright_red(self) -> Self {
+        self.with_foreground(ColorSpec::Named(NamedColor::BrightRed))
+    }
+
+    pub fn bright_green(self) -> Self {
+        self.with_foreground(ColorSpec::Named(NamedColor::BrightGreen))
+    }
+
+    pub fn bright_yellow(self) -> Self {
+        self.with_foreground(ColorSpec::Named(NamedColor::BrightYellow))
+    }
+
+    pub fn bright_blue(self) -> Self {
+        self.with_foreground(ColorSpec::Named(NamedColor::BrightBlue))
+    }
+
+    pub fn bright_magenta(self) -> Self {
+        self.with_foreground(ColorSpec::Named(NamedColor::BrightMagenta))
+    }
+
+    pub fn bright_cyan(self) -> Self {
+        self.with_foreground(ColorSpec::Named(NamedColor::BrightCyan))
+    }
+
+    pub fn bright_white(self) -> Self {
+        self.with_foreground(ColorSpec::Named(NamedColor::BrightWhite))
+    }
+
+    pub fn bold(self) -> Self {
+        self.set_style(|styles| styles.bold = true)
+    }
+
+    pub fn dim(self) -> Self {
+        self.set_style(|styles| styles.dim = true)
+    }
+
+    pub fn italic(self) -> Self {
+        self.set_style(|styles| styles.italic = true)
+    }
+
+    pub fn underline(self) -> Self {
+        self.set_style(|styles| styles.underline = true)
+    }
+
+    pub fn inverse(self) -> Self {
+        self.set_style(|styles| styles.inverse = true)
+    }
+
+    pub fn strikethrough(self) -> Self {
+        self.set_style(|styles| styles.strikethrough = true)
+    }
+
+    pub fn on_red(self) -> Self {
+        self.with_background(ColorSpec::Named(NamedColor::Red))
+    }
+
+    pub fn on_green(self) -> Self {
+        self.with_background(ColorSpec::Named(NamedColor::Green))
+    }
+
+    pub fn on_yellow(self) -> Self {
+        self.with_background(ColorSpec::Named(NamedColor::Yellow))
+    }
+
+    pub fn on_blue(self) -> Self {
+        self.with_background(ColorSpec::Named(NamedColor::Blue))
+    }
+
+    pub fn on_magenta(self) -> Self {
+        self.with_background(ColorSpec::Named(NamedColor::Magenta))
+    }
+
+    pub fn on_cyan(self) -> Self {
+        self.with_background(ColorSpec::Named(NamedColor::Cyan))
+    }
+
+    pub fn on_white(self) -> Self {
+        self.with_background(ColorSpec::Named(NamedColor::White))
+    }
+
+    pub fn on_black(self) -> Self {
+        self.with_background(ColorSpec::Named(NamedColor::Black))
+    }
+
+    pub fn rgb(self, r: u8, g: u8, b: u8) -> Self {
+        self.with_foreground(ColorSpec::Rgb(r, g, b))
+    }
+
+    pub fn on_rgb(self, r: u8, g: u8, b: u8) -> Self {
+        self.with_background(ColorSpec::Rgb(r, g, b))
+    }
+
+    pub fn hsl(self, h: f32, s: f32, l: f32) -> Self {
         let (r, g, b) = hsl_to_rgb(h, s, l);
         self.rgb(r, g, b)
     }
 
-    fn on_hsl(&self, h: f32, s: f32, l: f32) -> String {
-        if !should_colorize() {
-            return self.to_string();
-        }
+    pub fn on_hsl(self, h: f32, s: f32, l: f32) -> Self {
         let (r, g, b) = hsl_to_rgb(h, s, l);
         self.on_rgb(r, g, b)
     }
 
-    fn hex(&self, hex: &str) -> String {
-        if !should_colorize() {
-            return self.to_string();
-        }
+    pub fn hex(self, hex: &str) -> Self {
         if let Some((r, g, b)) = hex_to_rgb(hex) {
             self.rgb(r, g, b)
         } else {
-            self.clear() // Return uncolored text if hex code is invalid
+            self.clear()
         }
     }
 
-    fn on_hex(&self, hex: &str) -> String {
-        if !should_colorize() {
-            return self.to_string();
-        }
+    pub fn on_hex(self, hex: &str) -> Self {
         if let Some((r, g, b)) = hex_to_rgb(hex) {
             self.on_rgb(r, g, b)
         } else {
-            self.clear() // Return uncolored text if hex code is invalid
+            self.clear()
         }
     }
 
-    fn clear(&self) -> String {
-        format!("\x1b[0m{}\x1b[0m", self)
+    /// Remove all applied styling and return plain text.
+    pub fn clear(mut self) -> Self {
+        self.foreground = None;
+        self.background = None;
+        self.styles = StyleFlags::default();
+        self.raw_codes.clear();
+        self
+    }
+}
+
+impl Display for StyledText {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let codes = self.active_codes();
+        if !should_colorize() || codes.is_empty() {
+            return f.write_str(&self.text);
+        }
+
+        write!(f, "\x1b[{}m{}\x1b[0m", codes.join(";"), self.text)
+    }
+}
+
+impl From<StyledText> for String {
+    fn from(value: StyledText) -> Self {
+        value.to_string()
+    }
+}
+
+/// Trait for turning values into styled terminal text.
+pub trait Colorize {
+    /// Apply a raw ANSI SGR code sequence.
+    fn colorize(&self, color_code: &str) -> StyledText;
+
+    fn red(&self) -> StyledText;
+    fn green(&self) -> StyledText;
+    fn yellow(&self) -> StyledText;
+    fn blue(&self) -> StyledText;
+    fn magenta(&self) -> StyledText;
+    fn cyan(&self) -> StyledText;
+    fn white(&self) -> StyledText;
+    fn black(&self) -> StyledText;
+
+    fn bright_red(&self) -> StyledText;
+    fn bright_green(&self) -> StyledText;
+    fn bright_yellow(&self) -> StyledText;
+    fn bright_blue(&self) -> StyledText;
+    fn bright_magenta(&self) -> StyledText;
+    fn bright_cyan(&self) -> StyledText;
+    fn bright_white(&self) -> StyledText;
+
+    fn bold(&self) -> StyledText;
+    fn dim(&self) -> StyledText;
+    fn italic(&self) -> StyledText;
+    fn underline(&self) -> StyledText;
+    fn inverse(&self) -> StyledText;
+    fn strikethrough(&self) -> StyledText;
+
+    fn on_red(&self) -> StyledText;
+    fn on_green(&self) -> StyledText;
+    fn on_yellow(&self) -> StyledText;
+    fn on_blue(&self) -> StyledText;
+    fn on_magenta(&self) -> StyledText;
+    fn on_cyan(&self) -> StyledText;
+    fn on_white(&self) -> StyledText;
+    fn on_black(&self) -> StyledText;
+
+    fn rgb(&self, r: u8, g: u8, b: u8) -> StyledText;
+    fn on_rgb(&self, r: u8, g: u8, b: u8) -> StyledText;
+    fn hsl(&self, h: f32, s: f32, l: f32) -> StyledText;
+    fn on_hsl(&self, h: f32, s: f32, l: f32) -> StyledText;
+    fn hex(&self, hex: &str) -> StyledText;
+    fn on_hex(&self, hex: &str) -> StyledText;
+    fn clear(&self) -> StyledText;
+}
+
+impl<T: Display> Colorize for T {
+    fn colorize(&self, color_code: &str) -> StyledText {
+        StyledText::plain(self.to_string()).colorize(color_code)
+    }
+
+    fn red(&self) -> StyledText {
+        StyledText::plain(self.to_string()).red()
+    }
+
+    fn green(&self) -> StyledText {
+        StyledText::plain(self.to_string()).green()
+    }
+
+    fn yellow(&self) -> StyledText {
+        StyledText::plain(self.to_string()).yellow()
+    }
+
+    fn blue(&self) -> StyledText {
+        StyledText::plain(self.to_string()).blue()
+    }
+
+    fn magenta(&self) -> StyledText {
+        StyledText::plain(self.to_string()).magenta()
+    }
+
+    fn cyan(&self) -> StyledText {
+        StyledText::plain(self.to_string()).cyan()
+    }
+
+    fn white(&self) -> StyledText {
+        StyledText::plain(self.to_string()).white()
+    }
+
+    fn black(&self) -> StyledText {
+        StyledText::plain(self.to_string()).black()
+    }
+
+    fn bright_red(&self) -> StyledText {
+        StyledText::plain(self.to_string()).bright_red()
+    }
+
+    fn bright_green(&self) -> StyledText {
+        StyledText::plain(self.to_string()).bright_green()
+    }
+
+    fn bright_yellow(&self) -> StyledText {
+        StyledText::plain(self.to_string()).bright_yellow()
+    }
+
+    fn bright_blue(&self) -> StyledText {
+        StyledText::plain(self.to_string()).bright_blue()
+    }
+
+    fn bright_magenta(&self) -> StyledText {
+        StyledText::plain(self.to_string()).bright_magenta()
+    }
+
+    fn bright_cyan(&self) -> StyledText {
+        StyledText::plain(self.to_string()).bright_cyan()
+    }
+
+    fn bright_white(&self) -> StyledText {
+        StyledText::plain(self.to_string()).bright_white()
+    }
+
+    fn bold(&self) -> StyledText {
+        StyledText::plain(self.to_string()).bold()
+    }
+
+    fn dim(&self) -> StyledText {
+        StyledText::plain(self.to_string()).dim()
+    }
+
+    fn italic(&self) -> StyledText {
+        StyledText::plain(self.to_string()).italic()
+    }
+
+    fn underline(&self) -> StyledText {
+        StyledText::plain(self.to_string()).underline()
+    }
+
+    fn inverse(&self) -> StyledText {
+        StyledText::plain(self.to_string()).inverse()
+    }
+
+    fn strikethrough(&self) -> StyledText {
+        StyledText::plain(self.to_string()).strikethrough()
+    }
+
+    fn on_red(&self) -> StyledText {
+        StyledText::plain(self.to_string()).on_red()
+    }
+
+    fn on_green(&self) -> StyledText {
+        StyledText::plain(self.to_string()).on_green()
+    }
+
+    fn on_yellow(&self) -> StyledText {
+        StyledText::plain(self.to_string()).on_yellow()
+    }
+
+    fn on_blue(&self) -> StyledText {
+        StyledText::plain(self.to_string()).on_blue()
+    }
+
+    fn on_magenta(&self) -> StyledText {
+        StyledText::plain(self.to_string()).on_magenta()
+    }
+
+    fn on_cyan(&self) -> StyledText {
+        StyledText::plain(self.to_string()).on_cyan()
+    }
+
+    fn on_white(&self) -> StyledText {
+        StyledText::plain(self.to_string()).on_white()
+    }
+
+    fn on_black(&self) -> StyledText {
+        StyledText::plain(self.to_string()).on_black()
+    }
+
+    fn rgb(&self, r: u8, g: u8, b: u8) -> StyledText {
+        StyledText::plain(self.to_string()).rgb(r, g, b)
+    }
+
+    fn on_rgb(&self, r: u8, g: u8, b: u8) -> StyledText {
+        StyledText::plain(self.to_string()).on_rgb(r, g, b)
+    }
+
+    fn hsl(&self, h: f32, s: f32, l: f32) -> StyledText {
+        StyledText::plain(self.to_string()).hsl(h, s, l)
+    }
+
+    fn on_hsl(&self, h: f32, s: f32, l: f32) -> StyledText {
+        StyledText::plain(self.to_string()).on_hsl(h, s, l)
+    }
+
+    fn hex(&self, hex: &str) -> StyledText {
+        StyledText::plain(self.to_string()).hex(hex)
+    }
+
+    fn on_hex(&self, hex: &str) -> StyledText {
+        StyledText::plain(self.to_string()).on_hex(hex)
+    }
+
+    fn clear(&self) -> StyledText {
+        StyledText::plain(self.to_string()).clear()
     }
 }
 
@@ -424,131 +764,162 @@ impl<T: std::fmt::Display> Colorize for T {
 mod tests {
     use super::*;
     use rstest::*;
+    use std::env;
+    use std::ffi::OsString;
+    use std::sync::{LazyLock, Mutex, MutexGuard};
 
-    /// Disables terminal checks for color support during testing.
-    ///
-    /// This function is used in tests to ensure that color codes are always
-    /// generated, regardless of whether the output is going to a terminal or
-    /// not. This allows us to verify the exact ANSI escape sequences that would
-    /// be generated under normal circumstances. This is needed since 'nextest'
-    /// at least seems to grab the output and so the terminal check would always
-    /// return false.
-    ///
-    /// # Example
-    /// ```
-    /// #[test]
-    /// fn test_colors() {
-    ///     no_terminal_check();
-    ///     assert_eq!("test".red(), "\x1b[31mtest\x1b[0m");
-    /// }
-    /// ```
-    fn no_terminal_check() {
-        ColorizeConfig::set_terminal_check(false);
+    static TEST_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
+    struct TestStateGuard {
+        _lock: MutexGuard<'static, ()>,
+        previous_mode: ColorMode,
+        previous_no_color: Option<OsString>,
     }
 
-    // Test data for basic colors
-    #[rstest]
-    #[case("red", "31")]
-    #[case("green", "32")]
-    #[case("yellow", "33")]
-    #[case("blue", "34")]
-    #[case("magenta", "35")]
-    #[case("cyan", "36")]
-    #[case("white", "37")]
-    #[case("black", "30")]
-    fn test_basic_colors(#[case] color: &str, #[case] code: &str) {
-        no_terminal_check();
-        let text = "test";
-        let expected = format!("\x1b[{}m{}\x1b[0m", code, text);
-        match color {
-            "red" => assert_eq!(text.red(), expected),
-            "green" => assert_eq!(text.green(), expected),
-            "yellow" => assert_eq!(text.yellow(), expected),
-            "blue" => assert_eq!(text.blue(), expected),
-            "magenta" => assert_eq!(text.magenta(), expected),
-            "cyan" => assert_eq!(text.cyan(), expected),
-            "white" => assert_eq!(text.white(), expected),
-            "black" => assert_eq!(text.black(), expected),
-            _ => unreachable!(),
+    impl TestStateGuard {
+        fn colors_enabled(mode: ColorMode) -> Self {
+            let guard = TEST_LOCK
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let previous_mode = ColorizeConfig::color_mode();
+            let previous_no_color = env::var_os("NO_COLOR");
+
+            env::remove_var("NO_COLOR");
+            ColorizeConfig::set_color_mode(mode);
+
+            Self {
+                _lock: guard,
+                previous_mode,
+                previous_no_color,
+            }
+        }
+
+        fn no_color(mode: ColorMode) -> Self {
+            let guard = TEST_LOCK
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let previous_mode = ColorizeConfig::color_mode();
+            let previous_no_color = env::var_os("NO_COLOR");
+
+            env::set_var("NO_COLOR", "1");
+            ColorizeConfig::set_color_mode(mode);
+
+            Self {
+                _lock: guard,
+                previous_mode,
+                previous_no_color,
+            }
         }
     }
 
-    // Test data for bright colors
-    #[rstest]
-    #[case("bright_red", "91")]
-    #[case("bright_green", "92")]
-    #[case("bright_yellow", "93")]
-    #[case("bright_blue", "94")]
-    #[case("bright_magenta", "95")]
-    #[case("bright_cyan", "96")]
-    #[case("bright_white", "97")]
-    fn test_bright_colors(#[case] color: &str, #[case] code: &str) {
-        no_terminal_check();
-        let text = "test";
-        let expected = format!("\x1b[{}m{}\x1b[0m", code, text);
-        match color {
-            "bright_red" => assert_eq!(text.bright_red(), expected),
-            "bright_green" => assert_eq!(text.bright_green(), expected),
-            "bright_yellow" => assert_eq!(text.bright_yellow(), expected),
-            "bright_blue" => assert_eq!(text.bright_blue(), expected),
-            "bright_magenta" => assert_eq!(text.bright_magenta(), expected),
-            "bright_cyan" => assert_eq!(text.bright_cyan(), expected),
-            "bright_white" => assert_eq!(text.bright_white(), expected),
-            _ => unreachable!(),
+    impl Drop for TestStateGuard {
+        fn drop(&mut self) {
+            ColorizeConfig::set_color_mode(self.previous_mode);
+            match self.previous_no_color.as_ref() {
+                Some(value) => env::set_var("NO_COLOR", value),
+                None => env::remove_var("NO_COLOR"),
+            }
         }
     }
 
-    // Test data for background colors
     #[rstest]
-    #[case("on_red", "41")]
-    #[case("on_green", "42")]
-    #[case("on_yellow", "43")]
-    #[case("on_blue", "44")]
-    #[case("on_magenta", "45")]
-    #[case("on_cyan", "46")]
-    #[case("on_white", "47")]
-    #[case("on_black", "40")]
-    fn test_background_colors(#[case] color: &str, #[case] code: &str) {
-        no_terminal_check();
+    #[case("red", "\x1b[31mtest\x1b[0m")]
+    #[case("green", "\x1b[32mtest\x1b[0m")]
+    #[case("yellow", "\x1b[33mtest\x1b[0m")]
+    #[case("blue", "\x1b[34mtest\x1b[0m")]
+    #[case("magenta", "\x1b[35mtest\x1b[0m")]
+    #[case("cyan", "\x1b[36mtest\x1b[0m")]
+    #[case("white", "\x1b[37mtest\x1b[0m")]
+    #[case("black", "\x1b[30mtest\x1b[0m")]
+    fn test_basic_colors(#[case] color: &str, #[case] expected: &str) {
+        let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
         let text = "test";
-        let expected = format!("\x1b[{}m{}\x1b[0m", code, text);
-        match color {
-            "on_red" => assert_eq!(text.on_red(), expected),
-            "on_green" => assert_eq!(text.on_green(), expected),
-            "on_yellow" => assert_eq!(text.on_yellow(), expected),
-            "on_blue" => assert_eq!(text.on_blue(), expected),
-            "on_magenta" => assert_eq!(text.on_magenta(), expected),
-            "on_cyan" => assert_eq!(text.on_cyan(), expected),
-            "on_white" => assert_eq!(text.on_white(), expected),
-            "on_black" => assert_eq!(text.on_black(), expected),
+        let actual = match color {
+            "red" => text.red().to_string(),
+            "green" => text.green().to_string(),
+            "yellow" => text.yellow().to_string(),
+            "blue" => text.blue().to_string(),
+            "magenta" => text.magenta().to_string(),
+            "cyan" => text.cyan().to_string(),
+            "white" => text.white().to_string(),
+            "black" => text.black().to_string(),
             _ => unreachable!(),
-        }
+        };
+        assert_eq!(actual, expected);
     }
 
-    // Test data for styles
     #[rstest]
-    #[case("bold", "1")]
-    #[case("dim", "2")]
-    #[case("italic", "3")]
-    #[case("underline", "4")]
-    #[case("inverse", "7")]
-    #[case("strikethrough", "9")]
-    fn test_styles(#[case] style: &str, #[case] code: &str) {
-        no_terminal_check();
+    #[case("bright_red", "\x1b[91mtest\x1b[0m")]
+    #[case("bright_green", "\x1b[92mtest\x1b[0m")]
+    #[case("bright_yellow", "\x1b[93mtest\x1b[0m")]
+    #[case("bright_blue", "\x1b[94mtest\x1b[0m")]
+    #[case("bright_magenta", "\x1b[95mtest\x1b[0m")]
+    #[case("bright_cyan", "\x1b[96mtest\x1b[0m")]
+    #[case("bright_white", "\x1b[97mtest\x1b[0m")]
+    fn test_bright_colors(#[case] color: &str, #[case] expected: &str) {
+        let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
         let text = "test";
-        let expected = format!("\x1b[{}m{}\x1b[0m", code, text);
-        match style {
-            "bold" => assert_eq!(text.bold(), expected),
-            "dim" => assert_eq!(text.dim(), expected),
-            "italic" => assert_eq!(text.italic(), expected),
-            "underline" => assert_eq!(text.underline(), expected),
-            "inverse" => assert_eq!(text.inverse(), expected),
-            "strikethrough" => assert_eq!(text.strikethrough(), expected),
+        let actual = match color {
+            "bright_red" => text.bright_red().to_string(),
+            "bright_green" => text.bright_green().to_string(),
+            "bright_yellow" => text.bright_yellow().to_string(),
+            "bright_blue" => text.bright_blue().to_string(),
+            "bright_magenta" => text.bright_magenta().to_string(),
+            "bright_cyan" => text.bright_cyan().to_string(),
+            "bright_white" => text.bright_white().to_string(),
             _ => unreachable!(),
-        }
+        };
+        assert_eq!(actual, expected);
     }
 
-    // Test RGB colors with various values
+    #[rstest]
+    #[case("on_red", "\x1b[41mtest\x1b[0m")]
+    #[case("on_green", "\x1b[42mtest\x1b[0m")]
+    #[case("on_yellow", "\x1b[43mtest\x1b[0m")]
+    #[case("on_blue", "\x1b[44mtest\x1b[0m")]
+    #[case("on_magenta", "\x1b[45mtest\x1b[0m")]
+    #[case("on_cyan", "\x1b[46mtest\x1b[0m")]
+    #[case("on_white", "\x1b[47mtest\x1b[0m")]
+    #[case("on_black", "\x1b[40mtest\x1b[0m")]
+    fn test_background_colors(#[case] color: &str, #[case] expected: &str) {
+        let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+        let text = "test";
+        let actual = match color {
+            "on_red" => text.on_red().to_string(),
+            "on_green" => text.on_green().to_string(),
+            "on_yellow" => text.on_yellow().to_string(),
+            "on_blue" => text.on_blue().to_string(),
+            "on_magenta" => text.on_magenta().to_string(),
+            "on_cyan" => text.on_cyan().to_string(),
+            "on_white" => text.on_white().to_string(),
+            "on_black" => text.on_black().to_string(),
+            _ => unreachable!(),
+        };
+        assert_eq!(actual, expected);
+    }
+
+    #[rstest]
+    #[case("bold", "\x1b[1mtest\x1b[0m")]
+    #[case("dim", "\x1b[2mtest\x1b[0m")]
+    #[case("italic", "\x1b[3mtest\x1b[0m")]
+    #[case("underline", "\x1b[4mtest\x1b[0m")]
+    #[case("inverse", "\x1b[7mtest\x1b[0m")]
+    #[case("strikethrough", "\x1b[9mtest\x1b[0m")]
+    fn test_styles(#[case] style: &str, #[case] expected: &str) {
+        let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+        let text = "test";
+        let actual = match style {
+            "bold" => text.bold().to_string(),
+            "dim" => text.dim().to_string(),
+            "italic" => text.italic().to_string(),
+            "underline" => text.underline().to_string(),
+            "inverse" => text.inverse().to_string(),
+            "strikethrough" => text.strikethrough().to_string(),
+            _ => unreachable!(),
+        };
+        assert_eq!(actual, expected);
+    }
+
     #[rstest]
     #[case(255, 128, 0)]
     #[case(0, 255, 0)]
@@ -556,19 +927,18 @@ mod tests {
     #[case(0, 0, 0)]
     #[case(255, 255, 255)]
     fn test_rgb_colors(#[case] r: u8, #[case] g: u8, #[case] b: u8) {
-        no_terminal_check();
+        let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
         let text = "test";
         assert_eq!(
-            text.rgb(r, g, b),
+            text.rgb(r, g, b).to_string(),
             format!("\x1b[38;2;{};{};{}m{}\x1b[0m", r, g, b, text)
         );
         assert_eq!(
-            text.on_rgb(r, g, b),
+            text.on_rgb(r, g, b).to_string(),
             format!("\x1b[48;2;{};{};{}m{}\x1b[0m", r, g, b, text)
         );
     }
 
-    // Test hex colors with various values
     #[rstest]
     #[case("#ff8000", 255, 128, 0)]
     #[case("#00ff00", 0, 255, 0)]
@@ -576,25 +946,24 @@ mod tests {
     #[case("#000000", 0, 0, 0)]
     #[case("#ffffff", 255, 255, 255)]
     fn test_hex_colors(#[case] hex: &str, #[case] r: u8, #[case] g: u8, #[case] b: u8) {
-        no_terminal_check();
+        let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
         let text = "test";
         assert_eq!(
-            text.hex(hex),
+            text.hex(hex).to_string(),
             format!("\x1b[38;2;{};{};{}m{}\x1b[0m", r, g, b, text)
         );
         assert_eq!(
-            text.on_hex(hex),
+            text.on_hex(hex).to_string(),
             format!("\x1b[48;2;{};{};{}m{}\x1b[0m", r, g, b, text)
         );
 
-        // Test without # prefix
-        let hex_no_hash = hex.trim_start_matches('#');
+        let hex_without_prefix = hex.trim_start_matches('#');
         assert_eq!(
-            text.hex(hex_no_hash),
+            text.hex(hex_without_prefix).to_string(),
             format!("\x1b[38;2;{};{};{}m{}\x1b[0m", r, g, b, text)
         );
         assert_eq!(
-            text.on_hex(hex_no_hash),
+            text.on_hex(hex_without_prefix).to_string(),
             format!("\x1b[48;2;{};{};{}m{}\x1b[0m", r, g, b, text)
         );
     }
@@ -606,50 +975,91 @@ mod tests {
     #[case("#12345")]
     #[case("#1234567")]
     #[case("#xyz")]
-    fn test_invalid_hex(#[case] hex: &str) {
-        no_terminal_check();
+    fn test_invalid_hex_returns_plain_text(#[case] hex: &str) {
+        let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
         let text = "test";
-        assert_eq!(text.hex(hex), "\x1b[0mtest\x1b[0m");
-        assert_eq!(text.on_hex(hex), "\x1b[0mtest\x1b[0m");
+        assert_eq!(text.hex(hex).to_string(), "test");
+        assert_eq!(text.on_hex(hex).to_string(), "test");
+        assert_eq!(text.red().hex(hex).to_string(), "test");
+        assert_eq!(text.on_blue().on_hex(hex).to_string(), "test");
     }
 
     #[test]
-    fn test_string_and_str() {
-        let string = String::from("test");
-        assert_eq!(string.red(), "test".red());
-        assert_eq!(string.blue(), "test".blue());
-    }
-
-    #[test]
-    fn test_format_macro() {
-        no_terminal_check();
-        assert_eq!(format!("{}", "test".red()), format!("\x1b[31mtest\x1b[0m"));
-    }
-
-    #[test]
-    fn test_chaining() {
-        no_terminal_check();
-        assert_eq!("test".red().bold(), "\x1b[1m\x1b[31mtest\x1b[0m\x1b[0m");
+    fn test_clear_returns_plain_text() {
+        let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+        assert_eq!("test".clear().to_string(), "test");
+        assert_eq!("test".red().clear().to_string(), "test");
         assert_eq!(
-            "test".blue().italic().on_yellow(),
-            "\x1b[43m\x1b[3m\x1b[34mtest\x1b[0m\x1b[0m\x1b[0m"
+            "test".blue().italic().on_yellow().clear().to_string(),
+            "test"
         );
     }
 
-    /// Helper function to check if two RGB values are equal within a tolerance of 1
-    /// This accounts for floating-point rounding differences in HSL to RGB conversion
+    #[test]
+    fn test_chaining_composes_once() {
+        let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+        assert_eq!("test".red().bold().to_string(), "\x1b[1;31mtest\x1b[0m");
+        assert_eq!(
+            "test".blue().italic().on_yellow().to_string(),
+            "\x1b[3;34;43mtest\x1b[0m"
+        );
+        assert_eq!(
+            "test".rgb(255, 128, 0).on_blue().to_string(),
+            "\x1b[38;2;255;128;0;44mtest\x1b[0m"
+        );
+    }
+
+    #[test]
+    fn test_conflicting_chains_use_last_color() {
+        let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+        assert_eq!("test".red().green().to_string(), "\x1b[32mtest\x1b[0m");
+        assert_eq!("test".on_red().on_blue().to_string(), "\x1b[44mtest\x1b[0m");
+    }
+
+    #[test]
+    fn test_style_flags_accumulate() {
+        let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+        assert_eq!("test".bold().dim().to_string(), "\x1b[1;2mtest\x1b[0m");
+        assert_eq!(
+            "test".underline().italic().strikethrough().to_string(),
+            "\x1b[3;4;9mtest\x1b[0m"
+        );
+    }
+
+    #[test]
+    fn test_string_and_plain_text_access() {
+        let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+        let string = String::from("test");
+        let styled = string.red().bold();
+        assert_eq!(styled.to_string(), "\x1b[1;31mtest\x1b[0m");
+        assert_eq!(styled.plain_text(), "test");
+    }
+
+    #[test]
+    fn test_format_macro_uses_display() {
+        let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+        assert_eq!(format!("{}", "test".red()), "\x1b[31mtest\x1b[0m");
+    }
+
     fn assert_rgb_approx_eq(actual: &str, expected: &str) {
-        no_terminal_check();
         let extract_rgb = |s: &str| {
-            let parts: Vec<&str> = s.split(';').collect();
-            if parts.len() >= 5 {
-                let r = parts[2].parse::<i32>().unwrap();
-                let g = parts[3].parse::<i32>().unwrap();
-                let b = parts[4].split('m').next().unwrap().parse::<i32>().unwrap();
-                (r, g, b)
-            } else {
-                panic!("Invalid ANSI color sequence");
+            let start = s.find("38;2;").or_else(|| s.find("48;2;"));
+            if let Some(start) = start {
+                let sequence = &s[start..];
+                let parts: Vec<&str> = sequence.split(';').collect();
+                let r = parts.get(2).and_then(|part| part.parse::<i32>().ok());
+                let g = parts.get(3).and_then(|part| part.parse::<i32>().ok());
+                let b = parts
+                    .get(4)
+                    .and_then(|part| part.split('m').next())
+                    .and_then(|part| part.parse::<i32>().ok());
+
+                if let (Some(r), Some(g), Some(b)) = (r, g, b) {
+                    return (r, g, b);
+                }
             }
+
+            panic!("Invalid ANSI color sequence");
         };
 
         let (r1, g1, b1) = extract_rgb(actual);
@@ -668,17 +1078,17 @@ mod tests {
     }
 
     #[rstest]
-    #[case(0.0, 100.0, 50.0, 255, 0, 0)] // Red (hue segment 0)
-    #[case(60.0, 100.0, 50.0, 255, 255, 0)] // Yellow (boundary 0-1)
-    #[case(90.0, 100.0, 50.0, 128, 255, 0)] // Chartreuse (hue segment 1)
-    #[case(120.0, 100.0, 50.0, 0, 255, 0)] // Green (boundary 1-2)
-    #[case(150.0, 100.0, 50.0, 0, 255, 128)] // Spring Green (hue segment 2)
-    #[case(180.0, 100.0, 50.0, 0, 255, 255)] // Cyan (boundary 2-3)
-    #[case(210.0, 100.0, 50.0, 0, 128, 255)] // Azure (hue segment 3)
-    #[case(240.0, 100.0, 50.0, 0, 0, 255)] // Blue (boundary 3-4)
-    #[case(300.0, 100.0, 50.0, 255, 0, 255)] // Magenta (boundary 4-5)
-    #[case(330.0, 100.0, 50.0, 255, 0, 128)] // Rose (hue segment 5)
-    #[case(360.0, 100.0, 50.0, 255, 0, 0)] // Red again (full circle)
+    #[case(0.0, 100.0, 50.0, 255, 0, 0)]
+    #[case(60.0, 100.0, 50.0, 255, 255, 0)]
+    #[case(90.0, 100.0, 50.0, 128, 255, 0)]
+    #[case(120.0, 100.0, 50.0, 0, 255, 0)]
+    #[case(150.0, 100.0, 50.0, 0, 255, 128)]
+    #[case(180.0, 100.0, 50.0, 0, 255, 255)]
+    #[case(210.0, 100.0, 50.0, 0, 128, 255)]
+    #[case(240.0, 100.0, 50.0, 0, 0, 255)]
+    #[case(300.0, 100.0, 50.0, 255, 0, 255)]
+    #[case(330.0, 100.0, 50.0, 255, 0, 128)]
+    #[case(360.0, 100.0, 50.0, 255, 0, 0)]
     fn test_hsl_colors_comprehensive(
         #[case] h: f32,
         #[case] s: f32,
@@ -687,112 +1097,104 @@ mod tests {
         #[case] g: u8,
         #[case] b: u8,
     ) {
-        no_terminal_check();
-        let actual = "test".hsl(h, s, l);
-        let expected = "test".rgb(r, g, b);
+        let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+        let actual = "test".hsl(h, s, l).to_string();
+        let expected = "test".rgb(r, g, b).to_string();
         assert_rgb_approx_eq(&actual, &expected);
     }
 
     #[test]
     fn test_hsl_edge_cases() {
-        // Helper closure for approximate RGB comparison
+        let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+
         let assert_hsl_rgb = |h, s, l, r, g, b| {
-            let actual = "test".hsl(h, s, l);
-            let expected = "test".rgb(r, g, b);
+            let actual = "test".hsl(h, s, l).to_string();
+            let expected = "test".rgb(r, g, b).to_string();
             assert_rgb_approx_eq(&actual, &expected);
         };
-        no_terminal_check();
 
-        // Gray scale (0% saturation)
-        assert_hsl_rgb(0.0, 0.0, 0.0, 0, 0, 0); // Black
-        assert_hsl_rgb(0.0, 0.0, 25.0, 64, 64, 64); // Dark gray
-        assert_hsl_rgb(0.0, 0.0, 50.0, 128, 128, 128); // Mid gray
-        assert_hsl_rgb(0.0, 0.0, 75.0, 191, 191, 191); // Light gray
-        assert_hsl_rgb(0.0, 0.0, 100.0, 255, 255, 255); // White
+        assert_hsl_rgb(0.0, 0.0, 0.0, 0, 0, 0);
+        assert_hsl_rgb(0.0, 0.0, 25.0, 64, 64, 64);
+        assert_hsl_rgb(0.0, 0.0, 50.0, 128, 128, 128);
+        assert_hsl_rgb(0.0, 0.0, 75.0, 191, 191, 191);
+        assert_hsl_rgb(0.0, 0.0, 100.0, 255, 255, 255);
 
-        // Saturation variations (red hue)
-        assert_hsl_rgb(0.0, 25.0, 50.0, 159, 96, 96); // Low saturation
-        assert_hsl_rgb(0.0, 50.0, 50.0, 191, 64, 64); // Medium saturation
-        assert_hsl_rgb(0.0, 75.0, 50.0, 223, 32, 32); // High saturation
+        assert_hsl_rgb(0.0, 25.0, 50.0, 159, 96, 96);
+        assert_hsl_rgb(0.0, 50.0, 50.0, 191, 64, 64);
+        assert_hsl_rgb(0.0, 75.0, 50.0, 223, 32, 32);
 
-        // Lightness variations with full saturation
-        assert_hsl_rgb(120.0, 100.0, 25.0, 0, 128, 0); // Dark green
-        assert_hsl_rgb(120.0, 100.0, 75.0, 128, 255, 128); // Light green
+        assert_hsl_rgb(120.0, 100.0, 25.0, 0, 128, 0);
+        assert_hsl_rgb(120.0, 100.0, 75.0, 128, 255, 128);
     }
 
     #[test]
     fn test_hsl_background_colors() {
-        no_terminal_check();
-        // Red background
-        let actual = "test".on_hsl(0.0, 100.0, 50.0);
-        let expected = "test".on_rgb(255, 0, 0);
+        let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+        let actual = "test".on_hsl(0.0, 100.0, 50.0).to_string();
+        let expected = "test".on_rgb(255, 0, 0).to_string();
         assert_rgb_approx_eq(&actual, &expected);
 
-        // Green background
-        let actual = "test".on_hsl(120.0, 100.0, 50.0);
-        let expected = "test".on_rgb(0, 255, 0);
+        let actual = "test".on_hsl(120.0, 100.0, 50.0).to_string();
+        let expected = "test".on_rgb(0, 255, 0).to_string();
         assert_rgb_approx_eq(&actual, &expected);
 
-        // Blue background
-        let actual = "test".on_hsl(240.0, 100.0, 50.0);
-        let expected = "test".on_rgb(0, 0, 255);
+        let actual = "test".on_hsl(240.0, 100.0, 50.0).to_string();
+        let expected = "test".on_rgb(0, 0, 255).to_string();
         assert_rgb_approx_eq(&actual, &expected);
     }
 
     #[test]
-    fn test_no_color_and_terminal_detection() {
-        // Test NO_COLOR environment variable we also disable the terminal check
-        // here so we are sure the NO_COLOR variable is the only thing that
-        // disables color output.
-        no_terminal_check();
-        std::env::set_var("NO_COLOR", "1");
+    fn test_color_mode_always_forces_color() {
+        let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+        assert_eq!("test".red().to_string(), "\x1b[31mtest\x1b[0m");
+    }
 
-        // Test basic colors
-        assert_eq!("test".red(), "test");
-        assert_eq!("test".blue(), "test");
+    #[test]
+    fn test_color_mode_auto_respects_tty_detection() {
+        let _guard = TestStateGuard::colors_enabled(ColorMode::Auto);
+        assert_eq!("test".red().to_string(), "test");
+    }
 
-        // Test bright colors
-        assert_eq!("test".bright_red(), "test");
-        assert_eq!("test".bright_blue(), "test");
+    #[test]
+    fn test_color_mode_never_disables_color() {
+        let _guard = TestStateGuard::colors_enabled(ColorMode::Never);
+        assert_eq!("test".red().to_string(), "test");
+        assert_eq!("test".blue().italic().on_yellow().to_string(), "test");
+    }
 
-        // Test background colors
-        assert_eq!("test".on_red(), "test");
-        assert_eq!("test".on_blue(), "test");
+    #[test]
+    fn test_no_color_disables_output_in_auto_and_always() {
+        let _guard = TestStateGuard::no_color(ColorMode::Always);
+        assert_eq!("test".red().to_string(), "test");
+        assert_eq!("test".blue().italic().on_yellow().to_string(), "test");
+    }
 
-        // Test styles
-        assert_eq!("test".bold(), "test");
-        assert_eq!("test".italic(), "test");
+    #[test]
+    #[allow(deprecated)]
+    fn test_set_terminal_check_compatibility_mapping() {
+        let _guard = TestStateGuard::colors_enabled(ColorMode::Never);
+        ColorizeConfig::set_terminal_check(false);
+        assert_eq!(ColorizeConfig::color_mode(), ColorMode::Always);
 
-        // Test RGB colors
-        assert_eq!("test".rgb(255, 128, 0), "test");
-        assert_eq!("test".on_rgb(255, 128, 0), "test");
+        ColorizeConfig::set_terminal_check(true);
+        assert_eq!(ColorizeConfig::color_mode(), ColorMode::Auto);
+    }
 
-        // Test hex colors
-        assert_eq!("test".hex("#ff8000"), "test");
-        assert_eq!("test".on_hex("#ff8000"), "test");
+    #[test]
+    fn test_raw_colorize_codes_still_render() {
+        let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+        assert_eq!("test".colorize("31;1").to_string(), "\x1b[31;1mtest\x1b[0m");
+        assert_eq!(
+            "test".colorize("31").green().to_string(),
+            "\x1b[31;32mtest\x1b[0m"
+        );
+    }
 
-        // Test HSL colors
-        assert_eq!("test".hsl(0.0, 100.0, 50.0), "test");
-        assert_eq!("test".on_hsl(0.0, 100.0, 50.0), "test");
-
-        // Test chaining
-        assert_eq!("test".red().bold(), "test");
-        assert_eq!("test".blue().italic().on_yellow(), "test");
-
-        // Test with String
-        let string = String::from("test");
-        assert_eq!(string.red(), "test");
-        assert_eq!(string.blue(), "test");
-
-        // Clean up
-        std::env::remove_var("NO_COLOR");
-
-        // Note: We can't easily test the terminal detection in unit tests
-        // since std::io::stdout().is_terminal() depends on the actual
-        // terminal state. The behavior has been manually verified:
-        // - Returns true when running normally in a terminal
-        // - Returns false when output is piped (e.g., `cargo test | cat`)
-        // - Returns false when output is redirected (e.g., `cargo test > output.txt`)
+    #[test]
+    fn test_from_styled_text_to_string() {
+        let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+        let rendered: String = "test".red().bold().into();
+        assert_eq!(rendered, "\x1b[1;31mtest\x1b[0m");
     }
 
     #[test]
@@ -804,9 +1206,9 @@ mod tests {
     #[test]
     #[should_panic(expected = "RGB values differ by more than 1: (255, 0, 0) vs (252, 0, 0)")]
     fn test_assert_rgb_approx_eq_large_diff() {
-        no_terminal_check();
-        let color1 = "test".rgb(255, 0, 0);
-        let color2 = "test".rgb(252, 0, 0);
+        let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+        let color1 = "test".rgb(255, 0, 0).to_string();
+        let color2 = "test".rgb(252, 0, 0).to_string();
         assert_rgb_approx_eq(&color1, &color2);
     }
 }
