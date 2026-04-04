@@ -54,7 +54,6 @@ pub struct StyledText {
 
 impl StyledText {
     /// Create a plain styled value from text.
-    #[must_use]
     pub fn plain(text: impl Into<String>) -> Self {
         Self {
             text: text.into(),
@@ -66,7 +65,6 @@ impl StyledText {
     }
 
     /// Return the plain, unstyled text payload.
-    #[must_use]
     pub fn plain_text(&self) -> &str {
         &self.text
     }
@@ -105,7 +103,6 @@ impl StyledText {
     ///
     /// This is an escape hatch for manual SGR composition. Prefer the typed
     /// color and style methods when possible.
-    #[must_use]
     pub fn colorize(mut self, color_code: &str) -> Self {
         if !color_code.trim().is_empty() {
             self.raw_codes.push(color_code.to_string());
@@ -114,200 +111,167 @@ impl StyledText {
     }
 
     /// Apply the standard red foreground color.
-    #[must_use]
     pub fn red(self) -> Self {
         self.with_foreground(ColorSpec::Named(NamedColor::Red))
     }
 
     /// Apply the standard green foreground color.
-    #[must_use]
     pub fn green(self) -> Self {
         self.with_foreground(ColorSpec::Named(NamedColor::Green))
     }
 
     /// Apply the standard yellow foreground color.
-    #[must_use]
     pub fn yellow(self) -> Self {
         self.with_foreground(ColorSpec::Named(NamedColor::Yellow))
     }
 
     /// Apply the standard blue foreground color.
-    #[must_use]
     pub fn blue(self) -> Self {
         self.with_foreground(ColorSpec::Named(NamedColor::Blue))
     }
 
     /// Apply the standard magenta foreground color.
-    #[must_use]
     pub fn magenta(self) -> Self {
         self.with_foreground(ColorSpec::Named(NamedColor::Magenta))
     }
 
     /// Apply the standard cyan foreground color.
-    #[must_use]
     pub fn cyan(self) -> Self {
         self.with_foreground(ColorSpec::Named(NamedColor::Cyan))
     }
 
     /// Apply the standard white foreground color.
-    #[must_use]
     pub fn white(self) -> Self {
         self.with_foreground(ColorSpec::Named(NamedColor::White))
     }
 
     /// Apply the standard black foreground color.
-    #[must_use]
     pub fn black(self) -> Self {
         self.with_foreground(ColorSpec::Named(NamedColor::Black))
     }
 
     /// Apply the bright red foreground color.
-    #[must_use]
     pub fn bright_red(self) -> Self {
         self.with_foreground(ColorSpec::Named(NamedColor::BrightRed))
     }
 
     /// Apply the bright green foreground color.
-    #[must_use]
     pub fn bright_green(self) -> Self {
         self.with_foreground(ColorSpec::Named(NamedColor::BrightGreen))
     }
 
     /// Apply the bright yellow foreground color.
-    #[must_use]
     pub fn bright_yellow(self) -> Self {
         self.with_foreground(ColorSpec::Named(NamedColor::BrightYellow))
     }
 
     /// Apply the bright blue foreground color.
-    #[must_use]
     pub fn bright_blue(self) -> Self {
         self.with_foreground(ColorSpec::Named(NamedColor::BrightBlue))
     }
 
     /// Apply the bright magenta foreground color.
-    #[must_use]
     pub fn bright_magenta(self) -> Self {
         self.with_foreground(ColorSpec::Named(NamedColor::BrightMagenta))
     }
 
     /// Apply the bright cyan foreground color.
-    #[must_use]
     pub fn bright_cyan(self) -> Self {
         self.with_foreground(ColorSpec::Named(NamedColor::BrightCyan))
     }
 
     /// Apply the bright white foreground color.
-    #[must_use]
     pub fn bright_white(self) -> Self {
         self.with_foreground(ColorSpec::Named(NamedColor::BrightWhite))
     }
 
     /// Add bold text styling.
-    #[must_use]
     pub fn bold(self) -> Self {
         self.set_style(|styles| styles.bold = true)
     }
 
     /// Add dim text styling.
-    #[must_use]
     pub fn dim(self) -> Self {
         self.set_style(|styles| styles.dim = true)
     }
 
     /// Add italic text styling.
-    #[must_use]
     pub fn italic(self) -> Self {
         self.set_style(|styles| styles.italic = true)
     }
 
     /// Add underline text styling.
-    #[must_use]
     pub fn underline(self) -> Self {
         self.set_style(|styles| styles.underline = true)
     }
 
     /// Swap the foreground and background when rendered.
-    #[must_use]
     pub fn inverse(self) -> Self {
         self.set_style(|styles| styles.inverse = true)
     }
 
     /// Add strikethrough text styling.
-    #[must_use]
     pub fn strikethrough(self) -> Self {
         self.set_style(|styles| styles.strikethrough = true)
     }
 
     /// Apply the standard red background color.
-    #[must_use]
     pub fn on_red(self) -> Self {
         self.with_background(ColorSpec::Named(NamedColor::Red))
     }
 
     /// Apply the standard green background color.
-    #[must_use]
     pub fn on_green(self) -> Self {
         self.with_background(ColorSpec::Named(NamedColor::Green))
     }
 
     /// Apply the standard yellow background color.
-    #[must_use]
     pub fn on_yellow(self) -> Self {
         self.with_background(ColorSpec::Named(NamedColor::Yellow))
     }
 
     /// Apply the standard blue background color.
-    #[must_use]
     pub fn on_blue(self) -> Self {
         self.with_background(ColorSpec::Named(NamedColor::Blue))
     }
 
     /// Apply the standard magenta background color.
-    #[must_use]
     pub fn on_magenta(self) -> Self {
         self.with_background(ColorSpec::Named(NamedColor::Magenta))
     }
 
     /// Apply the standard cyan background color.
-    #[must_use]
     pub fn on_cyan(self) -> Self {
         self.with_background(ColorSpec::Named(NamedColor::Cyan))
     }
 
     /// Apply the standard white background color.
-    #[must_use]
     pub fn on_white(self) -> Self {
         self.with_background(ColorSpec::Named(NamedColor::White))
     }
 
     /// Apply the standard black background color.
-    #[must_use]
     pub fn on_black(self) -> Self {
         self.with_background(ColorSpec::Named(NamedColor::Black))
     }
 
     /// Apply a true-color RGB foreground.
-    #[must_use]
     pub fn rgb(self, r: u8, g: u8, b: u8) -> Self {
         self.with_foreground(ColorSpec::Rgb(r, g, b))
     }
 
     /// Apply a true-color RGB background.
-    #[must_use]
     pub fn on_rgb(self, r: u8, g: u8, b: u8) -> Self {
         self.with_background(ColorSpec::Rgb(r, g, b))
     }
 
     /// Convert HSL to RGB and apply it to the foreground color.
-    #[must_use]
     pub fn hsl(self, h: f32, s: f32, l: f32) -> Self {
         let (r, g, b) = hsl_to_rgb(h, s, l);
         self.rgb(r, g, b)
     }
 
     /// Convert HSL to RGB and apply it to the background color.
-    #[must_use]
     pub fn on_hsl(self, h: f32, s: f32, l: f32) -> Self {
         let (r, g, b) = hsl_to_rgb(h, s, l);
         self.on_rgb(r, g, b)
@@ -316,7 +280,6 @@ impl StyledText {
     /// Apply a hex foreground color.
     ///
     /// Invalid input clears all styling and returns plain text.
-    #[must_use]
     pub fn hex(self, hex: &str) -> Self {
         if let Some((r, g, b)) = hex_to_rgb(hex) {
             self.rgb(r, g, b)
@@ -328,7 +291,6 @@ impl StyledText {
     /// Apply a hex background color.
     ///
     /// Invalid input clears all styling and returns plain text.
-    #[must_use]
     pub fn on_hex(self, hex: &str) -> Self {
         if let Some((r, g, b)) = hex_to_rgb(hex) {
             self.on_rgb(r, g, b)
@@ -338,7 +300,6 @@ impl StyledText {
     }
 
     /// Remove all applied styling and return plain text.
-    #[must_use]
     pub fn clear(mut self) -> Self {
         self.foreground = None;
         self.background = None;

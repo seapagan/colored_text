@@ -62,7 +62,7 @@ fn main() {
     // Using with format! macro
     println!("\nUsing with format! macro:");
     let name = "World";
-    println!("{}", format!("Hello, {}!", name.blue().bold()));
+    println!("Hello, {}!", name.blue().bold());
 
     // Using with String
     println!("\nUsing with String:");
