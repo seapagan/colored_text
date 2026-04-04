@@ -86,6 +86,9 @@
 //! println!("{}", "Never colored".red());
 //! ```
 //!
+//! When you need `Auto` mode to follow a destination other than stdout, use
+//! [`StyledText::render`] with a [`RenderTarget`].
+//!
 //! # Note
 //!
 //! Colors and styles are implemented using ANSI escape codes, which are
@@ -100,5 +103,5 @@ mod style;
 #[cfg(test)]
 mod tests;
 
-pub use config::{ColorMode, ColorizeConfig};
+pub use config::{ColorMode, ColorizeConfig, RenderTarget};
 pub use style::{Colorize, StyledText};

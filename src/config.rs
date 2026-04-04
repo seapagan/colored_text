@@ -15,6 +15,17 @@ pub enum ColorMode {
     Never,
 }
 
+/// Output target used when rendering styled text explicitly.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RenderTarget {
+    /// Resolve terminal capability from stdout.
+    Stdout,
+    /// Resolve terminal capability from stderr.
+    Stderr,
+    /// Use an explicit terminal capability for a custom destination.
+    Terminal(bool),
+}
+
 /// Configuration for controlling runtime color behavior.
 ///
 /// The active configuration is stored per thread. This makes it straightforward
@@ -28,7 +39,11 @@ pub struct ColorizeConfig {
 thread_local! {
     static CONFIG: RefCell<ColorizeConfig> = RefCell::new(ColorizeConfig::default());
     #[cfg(test)]
-    static TERMINAL_OVERRIDE: RefCell<Option<bool>> = RefCell::new(None);
+    #[allow(clippy::missing_const_for_thread_local)]
+    static STDOUT_TERMINAL_OVERRIDE: RefCell<Option<bool>> = RefCell::new(None);
+    #[cfg(test)]
+    #[allow(clippy::missing_const_for_thread_local)]
+    static STDERR_TERMINAL_OVERRIDE: RefCell<Option<bool>> = RefCell::new(None);
 }
 
 impl Default for ColorizeConfig {
@@ -74,28 +89,60 @@ impl ColorizeConfig {
 /// This respects [`ColorizeConfig::color_mode()`], and `NO_COLOR` takes
 /// precedence over both [`ColorMode::Auto`] and [`ColorMode::Always`].
 pub(crate) fn should_colorize() -> bool {
+    should_colorize_for(RenderTarget::Stdout)
+}
+
+/// Evaluate the current runtime color policy for a specific render target.
+pub(crate) fn should_colorize_for(target: RenderTarget) -> bool {
     match ColorizeConfig::color_mode() {
         ColorMode::Never => false,
         ColorMode::Always => std::env::var_os("NO_COLOR").is_none(),
-        ColorMode::Auto => std::env::var_os("NO_COLOR").is_none() && stdout_is_terminal(),
+        ColorMode::Auto => std::env::var_os("NO_COLOR").is_none() && target_is_terminal(target),
+    }
+}
+
+fn target_is_terminal(target: RenderTarget) -> bool {
+    match target {
+        RenderTarget::Stdout => stdout_is_terminal(),
+        RenderTarget::Stderr => stderr_is_terminal(),
+        RenderTarget::Terminal(value) => value,
     }
 }
 
 fn stdout_is_terminal() -> bool {
     #[cfg(test)]
-    if let Some(value) = TERMINAL_OVERRIDE.with(|override_value| *override_value.borrow()) {
+    if let Some(value) = STDOUT_TERMINAL_OVERRIDE.with(|override_value| *override_value.borrow()) {
         return value;
     }
 
     std::io::stdout().is_terminal()
 }
 
+fn stderr_is_terminal() -> bool {
+    #[cfg(test)]
+    if let Some(value) = STDERR_TERMINAL_OVERRIDE.with(|override_value| *override_value.borrow()) {
+        return value;
+    }
+
+    std::io::stderr().is_terminal()
+}
+
 #[cfg(test)]
 pub(crate) fn set_terminal_override_for_tests(value: Option<bool>) {
-    TERMINAL_OVERRIDE.with(|override_value| *override_value.borrow_mut() = value);
+    STDOUT_TERMINAL_OVERRIDE.with(|override_value| *override_value.borrow_mut() = value);
 }
 
 #[cfg(test)]
 pub(crate) fn get_terminal_override_for_tests() -> Option<bool> {
-    TERMINAL_OVERRIDE.with(|override_value| *override_value.borrow())
+    STDOUT_TERMINAL_OVERRIDE.with(|override_value| *override_value.borrow())
+}
+
+#[cfg(test)]
+pub(crate) fn set_stderr_terminal_override_for_tests(value: Option<bool>) {
+    STDERR_TERMINAL_OVERRIDE.with(|override_value| *override_value.borrow_mut() = value);
+}
+
+#[cfg(test)]
+pub(crate) fn get_stderr_terminal_override_for_tests() -> Option<bool> {
+    STDERR_TERMINAL_OVERRIDE.with(|override_value| *override_value.borrow())
 }

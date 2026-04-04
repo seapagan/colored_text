@@ -1,7 +1,7 @@
 use std::fmt::{self, Display};
 
 use crate::color::{hex_to_rgb, hsl_to_rgb, ColorSpec, NamedColor};
-use crate::config::should_colorize;
+use crate::config::{should_colorize, should_colorize_for, RenderTarget};
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 struct StyleFlags {
@@ -307,16 +307,30 @@ impl StyledText {
         self.raw_codes.clear();
         self
     }
+
+    /// Render the styled value for a specific output target.
+    ///
+    /// This is useful when the caller knows the real destination is stderr or a
+    /// custom writer and wants [`crate::ColorMode::Auto`] to evaluate that
+    /// destination instead of the default stdout-based behavior used by
+    /// [`Display`].
+    pub fn render(&self, target: RenderTarget) -> String {
+        self.render_with_color_policy(should_colorize_for(target))
+    }
+
+    fn render_with_color_policy(&self, colorize: bool) -> String {
+        let codes = self.active_codes();
+        if !colorize || codes.is_empty() {
+            return self.text.clone();
+        }
+
+        format!("\x1b[{}m{}\x1b[0m", codes.join(";"), self.text)
+    }
 }
 
 impl Display for StyledText {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let codes = self.active_codes();
-        if !should_colorize() || codes.is_empty() {
-            return f.write_str(&self.text);
-        }
-
-        write!(f, "\x1b[{}m{}\x1b[0m", codes.join(";"), self.text)
+        f.write_str(&self.render_with_color_policy(should_colorize()))
     }
 }
 
