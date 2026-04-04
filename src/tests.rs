@@ -1,8 +1,10 @@
-use crate::config::set_terminal_override_for_tests;
+use crate::color::{ColorSpec, NamedColor};
+use crate::config::{set_terminal_override_for_tests, should_colorize};
 use crate::*;
 use rstest::*;
 use std::env;
 use std::ffi::OsString;
+use std::io::IsTerminal;
 use std::sync::{LazyLock, Mutex, MutexGuard};
 
 static TEST_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
@@ -400,6 +402,12 @@ fn test_color_mode_auto_respects_tty_detection() {
 }
 
 #[test]
+fn test_color_mode_auto_uses_real_stdout_terminal_state_without_override() {
+    let _guard = TestStateGuard::with_state(ColorMode::Auto, None, None);
+    assert_eq!(should_colorize(), std::io::stdout().is_terminal());
+}
+
+#[test]
 fn test_color_mode_auto_enables_color_for_terminal_output() {
     let _guard = TestStateGuard::auto_terminal(true);
     assert_eq!("test".red().to_string(), "\x1b[31mtest\x1b[0m");
@@ -438,6 +446,18 @@ fn test_raw_colorize_codes_still_render() {
         "test".colorize("31").green().to_string(),
         "\x1b[31;32mtest\x1b[0m"
     );
+}
+
+#[rstest]
+#[case(NamedColor::BrightRed, "101")]
+#[case(NamedColor::BrightGreen, "102")]
+#[case(NamedColor::BrightYellow, "103")]
+#[case(NamedColor::BrightBlue, "104")]
+#[case(NamedColor::BrightMagenta, "105")]
+#[case(NamedColor::BrightCyan, "106")]
+#[case(NamedColor::BrightWhite, "107")]
+fn test_bright_background_color_codes(#[case] color: NamedColor, #[case] expected: &str) {
+    assert_eq!(ColorSpec::Named(color).background_code(), expected);
 }
 
 #[test]
