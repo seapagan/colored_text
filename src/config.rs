@@ -26,7 +26,7 @@ pub struct ColorizeConfig {
 thread_local! {
     static CONFIG: RefCell<ColorizeConfig> = RefCell::new(ColorizeConfig::default());
     #[cfg(test)]
-    static TERMINAL_OVERRIDE: RefCell<Option<bool>> = const { RefCell::new(None) };
+    static TERMINAL_OVERRIDE: RefCell<Option<bool>> = RefCell::new(None);
 }
 
 impl Default for ColorizeConfig {
