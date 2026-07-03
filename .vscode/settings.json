@@ -1,0 +1,4 @@
+{
+  "markiscodecoverage.searchCriteria": "target/llvm-cov/coverage.lcov",
+  "rust-analyzer.testExplorer": true
+}
