@@ -94,6 +94,19 @@ println!("{}", "Back to plain text".red().bold().clear());
 - `.bright_cyan()`
 - `.bright_white()`
 
+> [!IMPORTANT]
+>
+> Bright ANSI colours use the standard SGR codes `90–97`. Their final appearance depends on the terminal emulator’s active colour palette.
+>
+> Some themes, especially soft/pastel themes such as Catppuccin, may make bright colours appear very close to the normal ANSI colours. This does not mean the escape codes are wrong; it means the terminal palette maps those colour slots similarly.
+>
+> For example:
+>
+> - `31` uses ANSI red / palette slot 1
+> - `91` uses bright ANSI red / palette slot 9
+> - `38;5;1` uses 256-colour index 1
+> - `38;5;9` uses 256-colour index 9
+
 ### Background Colors
 
 - `.on_red()`
@@ -224,7 +237,7 @@ your terminal emulator and its configuration:
 
 - Basic colors (codes 30-37) are widely supported
 - Bright colors (codes 90-97) may appear the same as basic colors in some
-  terminals
+  terminals or themes (pastel themes like Catppuccin especially)
 - RGB colors require true color support in your terminal
 - Some styling options (like italic) might not work in all terminals
 
