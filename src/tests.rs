@@ -148,6 +148,7 @@ fn test_basic_colors(#[case] color: &str, #[case] expected: &str) {
 }
 
 #[rstest]
+#[case("bright_black", "\x1b[90mtest\x1b[0m")]
 #[case("bright_red", "\x1b[91mtest\x1b[0m")]
 #[case("bright_green", "\x1b[92mtest\x1b[0m")]
 #[case("bright_yellow", "\x1b[93mtest\x1b[0m")]
@@ -159,6 +160,7 @@ fn test_bright_colors(#[case] color: &str, #[case] expected: &str) {
     let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
     let text = "test";
     let actual = match color {
+        "bright_black" => text.bright_black().to_string(),
         "bright_red" => text.bright_red().to_string(),
         "bright_green" => text.bright_green().to_string(),
         "bright_yellow" => text.bright_yellow().to_string(),
@@ -192,6 +194,32 @@ fn test_background_colors(#[case] color: &str, #[case] expected: &str) {
         "on_cyan" => text.on_cyan().to_string(),
         "on_white" => text.on_white().to_string(),
         "on_black" => text.on_black().to_string(),
+        _ => unreachable!(),
+    };
+    assert_eq!(actual, expected);
+}
+
+#[rstest]
+#[case("on_bright_black", "\x1b[100mtest\x1b[0m")]
+#[case("on_bright_red", "\x1b[101mtest\x1b[0m")]
+#[case("on_bright_green", "\x1b[102mtest\x1b[0m")]
+#[case("on_bright_yellow", "\x1b[103mtest\x1b[0m")]
+#[case("on_bright_blue", "\x1b[104mtest\x1b[0m")]
+#[case("on_bright_magenta", "\x1b[105mtest\x1b[0m")]
+#[case("on_bright_cyan", "\x1b[106mtest\x1b[0m")]
+#[case("on_bright_white", "\x1b[107mtest\x1b[0m")]
+fn test_bright_background_colors(#[case] color: &str, #[case] expected: &str) {
+    let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+    let text = "test";
+    let actual = match color {
+        "on_bright_black" => text.on_bright_black().to_string(),
+        "on_bright_red" => text.on_bright_red().to_string(),
+        "on_bright_green" => text.on_bright_green().to_string(),
+        "on_bright_yellow" => text.on_bright_yellow().to_string(),
+        "on_bright_blue" => text.on_bright_blue().to_string(),
+        "on_bright_magenta" => text.on_bright_magenta().to_string(),
+        "on_bright_cyan" => text.on_bright_cyan().to_string(),
+        "on_bright_white" => text.on_bright_white().to_string(),
         _ => unreachable!(),
     };
     assert_eq!(actual, expected);
@@ -860,6 +888,19 @@ fn test_styled_text_inherent_ansi256_aliases() {
 }
 
 #[test]
+fn test_styled_text_inherent_bright_black_methods() {
+    let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+    assert_eq!(
+        StyledText::plain("test").bright_black().to_string(),
+        "\x1b[90mtest\x1b[0m"
+    );
+    assert_eq!(
+        StyledText::plain("test").on_bright_black().to_string(),
+        "\x1b[100mtest\x1b[0m"
+    );
+}
+
+#[test]
 fn test_named_colors_remain_named_for_color_levels() {
     let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
 
@@ -911,6 +952,7 @@ fn test_rgb_to_ansi256_known_values(#[case] rgb: (u8, u8, u8), #[case] expected:
 #[rstest]
 #[case((255, 0, 0), NamedColor::BrightRed)]
 #[case((0, 0, 128), NamedColor::Blue)]
+#[case((128, 128, 128), NamedColor::BrightBlack)]
 #[case((255, 255, 255), NamedColor::BrightWhite)]
 #[case((255, 128, 0), NamedColor::Yellow)]
 fn test_rgb_to_named_color_known_values(#[case] rgb: (u8, u8, u8), #[case] expected: NamedColor) {
@@ -918,6 +960,7 @@ fn test_rgb_to_named_color_known_values(#[case] rgb: (u8, u8, u8), #[case] expec
 }
 
 #[rstest]
+#[case(8, NamedColor::BrightBlack)]
 #[case(12, NamedColor::BrightBlue)]
 #[case(208, NamedColor::BrightYellow)]
 #[case(236, NamedColor::Black)]
@@ -947,6 +990,7 @@ fn test_raw_colorize_codes_still_render() {
 }
 
 #[rstest]
+#[case(NamedColor::BrightBlack, "100")]
 #[case(NamedColor::BrightRed, "101")]
 #[case(NamedColor::BrightGreen, "102")]
 #[case(NamedColor::BrightYellow, "103")]

@@ -14,6 +14,7 @@ fn main() {
 
     // Bright colors
     println!("\nBright colors:");
+    println!("{}", "Bright black text".bright_black());
     println!("{}", "Bright red text".bright_red());
     println!("{}", "Bright green text".bright_green());
     println!("{}", "Bright blue text".bright_blue());
@@ -23,6 +24,9 @@ fn main() {
     println!("{}", "Red background".on_red());
     println!("{}", "Green background".on_green());
     println!("{}", "Blue background".on_blue());
+    println!("{}", "Bright black background".on_bright_black());
+    println!("{}", "Bright red background".on_bright_red());
+    println!("{}", "Bright blue background".on_bright_blue());
 
     // Text styles
     println!("\nText styles:");

@@ -159,6 +159,11 @@ impl StyledText {
         self.with_foreground(ColorSpec::Named(NamedColor::Black))
     }
 
+    /// Apply the bright black foreground color.
+    pub fn bright_black(self) -> Self {
+        self.with_foreground(ColorSpec::Named(NamedColor::BrightBlack))
+    }
+
     /// Apply the bright red foreground color.
     pub fn bright_red(self) -> Self {
         self.with_foreground(ColorSpec::Named(NamedColor::BrightRed))
@@ -262,6 +267,46 @@ impl StyledText {
     /// Apply the standard black background color.
     pub fn on_black(self) -> Self {
         self.with_background(ColorSpec::Named(NamedColor::Black))
+    }
+
+    /// Apply the bright black background color.
+    pub fn on_bright_black(self) -> Self {
+        self.with_background(ColorSpec::Named(NamedColor::BrightBlack))
+    }
+
+    /// Apply the bright red background color.
+    pub fn on_bright_red(self) -> Self {
+        self.with_background(ColorSpec::Named(NamedColor::BrightRed))
+    }
+
+    /// Apply the bright green background color.
+    pub fn on_bright_green(self) -> Self {
+        self.with_background(ColorSpec::Named(NamedColor::BrightGreen))
+    }
+
+    /// Apply the bright yellow background color.
+    pub fn on_bright_yellow(self) -> Self {
+        self.with_background(ColorSpec::Named(NamedColor::BrightYellow))
+    }
+
+    /// Apply the bright blue background color.
+    pub fn on_bright_blue(self) -> Self {
+        self.with_background(ColorSpec::Named(NamedColor::BrightBlue))
+    }
+
+    /// Apply the bright magenta background color.
+    pub fn on_bright_magenta(self) -> Self {
+        self.with_background(ColorSpec::Named(NamedColor::BrightMagenta))
+    }
+
+    /// Apply the bright cyan background color.
+    pub fn on_bright_cyan(self) -> Self {
+        self.with_background(ColorSpec::Named(NamedColor::BrightCyan))
+    }
+
+    /// Apply the bright white background color.
+    pub fn on_bright_white(self) -> Self {
+        self.with_background(ColorSpec::Named(NamedColor::BrightWhite))
     }
 
     /// Apply an ANSI 256-color foreground.
@@ -391,6 +436,8 @@ pub trait Colorize {
     /// Apply the standard black foreground color.
     fn black(&self) -> StyledText;
 
+    /// Apply the bright black foreground color.
+    fn bright_black(&self) -> StyledText;
     /// Apply the bright red foreground color.
     fn bright_red(&self) -> StyledText;
     /// Apply the bright green foreground color.
@@ -435,6 +482,22 @@ pub trait Colorize {
     fn on_white(&self) -> StyledText;
     /// Apply the standard black background color.
     fn on_black(&self) -> StyledText;
+    /// Apply the bright black background color.
+    fn on_bright_black(&self) -> StyledText;
+    /// Apply the bright red background color.
+    fn on_bright_red(&self) -> StyledText;
+    /// Apply the bright green background color.
+    fn on_bright_green(&self) -> StyledText;
+    /// Apply the bright yellow background color.
+    fn on_bright_yellow(&self) -> StyledText;
+    /// Apply the bright blue background color.
+    fn on_bright_blue(&self) -> StyledText;
+    /// Apply the bright magenta background color.
+    fn on_bright_magenta(&self) -> StyledText;
+    /// Apply the bright cyan background color.
+    fn on_bright_cyan(&self) -> StyledText;
+    /// Apply the bright white background color.
+    fn on_bright_white(&self) -> StyledText;
 
     /// Apply an ANSI 256-color foreground.
     fn ansi256(&self, index: u8) -> StyledText;
@@ -496,6 +559,10 @@ impl<T: Display> Colorize for T {
 
     fn black(&self) -> StyledText {
         StyledText::plain(self.to_string()).black()
+    }
+
+    fn bright_black(&self) -> StyledText {
+        StyledText::plain(self.to_string()).bright_black()
     }
 
     fn bright_red(&self) -> StyledText {
@@ -580,6 +647,38 @@ impl<T: Display> Colorize for T {
 
     fn on_black(&self) -> StyledText {
         StyledText::plain(self.to_string()).on_black()
+    }
+
+    fn on_bright_black(&self) -> StyledText {
+        StyledText::plain(self.to_string()).on_bright_black()
+    }
+
+    fn on_bright_red(&self) -> StyledText {
+        StyledText::plain(self.to_string()).on_bright_red()
+    }
+
+    fn on_bright_green(&self) -> StyledText {
+        StyledText::plain(self.to_string()).on_bright_green()
+    }
+
+    fn on_bright_yellow(&self) -> StyledText {
+        StyledText::plain(self.to_string()).on_bright_yellow()
+    }
+
+    fn on_bright_blue(&self) -> StyledText {
+        StyledText::plain(self.to_string()).on_bright_blue()
+    }
+
+    fn on_bright_magenta(&self) -> StyledText {
+        StyledText::plain(self.to_string()).on_bright_magenta()
+    }
+
+    fn on_bright_cyan(&self) -> StyledText {
+        StyledText::plain(self.to_string()).on_bright_cyan()
+    }
+
+    fn on_bright_white(&self) -> StyledText {
+        StyledText::plain(self.to_string()).on_bright_white()
     }
 
     fn ansi256(&self, index: u8) -> StyledText {

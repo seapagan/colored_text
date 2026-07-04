@@ -91,6 +91,7 @@ println!("{}", "Back to plain text".red().bold().clear());
 
 ### Bright Colors
 
+- `.bright_black()`
 - `.bright_red()`
 - `.bright_green()`
 - `.bright_blue()`
@@ -108,6 +109,7 @@ println!("{}", "Back to plain text".red().bold().clear());
 > For example:
 >
 > - `31` uses ANSI red / palette slot 1
+> - `90` uses ANSI bright black / palette slot 8
 > - `91` uses bright ANSI red / palette slot 9
 > - `38;5;1` uses 256-colour index 1
 > - `38;5;9` uses 256-colour index 9
@@ -122,6 +124,13 @@ println!("{}", "Back to plain text".red().bold().clear());
 - `.on_cyan()`
 - `.on_white()`
 - `.on_black()`
+
+### Bright Background Colors
+
+Bright background methods are available by prefixing bright color names with
+`on_`, for example `.on_bright_black()` and `.on_bright_red()`.
+
+They use the standard bright background SGR codes `100-107`.
 
 ### Styles
 

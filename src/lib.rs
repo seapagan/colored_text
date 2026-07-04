@@ -17,6 +17,8 @@
 //! // Basic color usage
 //! println!("{}", "Red text".red());
 //! println!("{}", "Blue background".on_blue());
+//! println!("{}", "Bright black text".bright_black());
+//! println!("{}", "Bright black background".on_bright_black());
 //!
 //! // Combining styles
 //! println!("{}", "Bold green text".green().bold());

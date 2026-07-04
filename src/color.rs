@@ -83,6 +83,7 @@ pub(crate) enum NamedColor {
     Magenta,
     Cyan,
     White,
+    BrightBlack,
     BrightRed,
     BrightGreen,
     BrightYellow,
@@ -103,6 +104,7 @@ impl NamedColor {
             Self::Magenta => "35",
             Self::Cyan => "36",
             Self::White => "37",
+            Self::BrightBlack => "90",
             Self::BrightRed => "91",
             Self::BrightGreen => "92",
             Self::BrightYellow => "93",
@@ -123,6 +125,7 @@ impl NamedColor {
             Self::Magenta => "45",
             Self::Cyan => "46",
             Self::White => "47",
+            Self::BrightBlack => "100",
             Self::BrightRed => "101",
             Self::BrightGreen => "102",
             Self::BrightYellow => "103",
@@ -246,7 +249,7 @@ pub(crate) fn ansi256_to_named_color(index: u8) -> NamedColor {
     rgb_to_named_color(r, g, b)
 }
 
-fn named_color_candidates() -> [(NamedColor, (u8, u8, u8)); 15] {
+fn named_color_candidates() -> [(NamedColor, (u8, u8, u8)); 16] {
     [
         (NamedColor::Black, ANSI16_RGB[0]),
         (NamedColor::Red, ANSI16_RGB[1]),
@@ -256,6 +259,7 @@ fn named_color_candidates() -> [(NamedColor, (u8, u8, u8)); 15] {
         (NamedColor::Magenta, ANSI16_RGB[5]),
         (NamedColor::Cyan, ANSI16_RGB[6]),
         (NamedColor::White, ANSI16_RGB[7]),
+        (NamedColor::BrightBlack, ANSI16_RGB[8]),
         (NamedColor::BrightRed, ANSI16_RGB[9]),
         (NamedColor::BrightGreen, ANSI16_RGB[10]),
         (NamedColor::BrightYellow, ANSI16_RGB[11]),
