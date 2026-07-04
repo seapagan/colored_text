@@ -129,7 +129,7 @@ println!("{}", "Back to plain text".red().bold().clear());
 - `.inverse()` - Swap foreground and background colors
 - `.strikethrough()` - Draw a line through the text
 
-### RGB, HSL, and Hex Colors
+### ANSI 256, RGB, HSL, and Hex Colors
 
 - `.ansi256(index)` - Custom text color using an ANSI 256-color index (0-255,
   compile-time enforced)
