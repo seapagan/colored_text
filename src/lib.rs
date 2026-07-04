@@ -25,7 +25,9 @@
 //! let name = "World";
 //! println!("{}", format!("Hello, {}!", name.blue().bold()));
 //!
-//! // RGB and Hex colors
+//! // ANSI 256, RGB, and Hex colors
+//! println!("{}", "ANSI 256 color".ansi256(208));
+//! println!("{}", "ANSI 256 background".on_ansi256(236));
 //! println!("{}", "RGB color".rgb(255, 128, 0));
 //! println!("{}", "Hex color".hex("#ff8000"));
 //!
@@ -39,6 +41,7 @@
 //! - Background colors
 //! - Bright color variants
 //! - Text styles (bold, dim, italic, underline)
+//! - ANSI 256-color foreground and background support
 //! - RGB, HSL, and Hex color support
 //! - Composed style chaining
 //! - Works with format! macro
@@ -48,6 +51,10 @@
 //!
 //! - RGB values must be in range 0-255 (enforced at compile time via `u8` type)
 //! - Attempting to use RGB values > 255 will result in a compile error
+//! - ANSI 256-color indexes must be in range 0-255 (enforced at compile time
+//!   via `u8` type)
+//! - `.color256(index)` and `.on_color256(index)` are aliases for
+//!   `.ansi256(index)` and `.on_ansi256(index)`
 //! - Hex color codes can be provided with or without the `#` prefix in 3-digit
 //!   shorthand or 6-digit full form
 //! - Invalid hex codes (wrong length or invalid characters) return plain

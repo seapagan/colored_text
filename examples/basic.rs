@@ -33,8 +33,11 @@ fn main() {
     println!("{}", "Inverse text".inverse());
     println!("{}", "Strikethrough text".strikethrough());
 
-    // RGB, HSL, and Hex colors
-    println!("\nRGB, HSL, and Hex colors:");
+    // ANSI 256, RGB, HSL, and Hex colors
+    println!("\nANSI 256, RGB, HSL, and Hex colors:");
+    println!("{}", "ANSI 256 color".ansi256(208));
+    println!("{}", "ANSI 256 background".on_ansi256(236));
+    println!("{}", "ANSI 256 aliases".color256(208).on_color256(236));
     println!("{}", "Custom RGB color".rgb(255, 128, 0));
     println!("{}", "Custom RGB background".on_rgb(0, 128, 255));
 
