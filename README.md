@@ -210,7 +210,7 @@ if needed.
 
 `FORCE_COLOR` and explicit `ColorDepthMode` settings are treated as intentional
 overrides and can enable color even when `NO_COLOR` is set. `ColorMode::Never`
-always wins and disables all ANSI output.
+always wins and disables all color and style output.
 
 ```rust
 // Colors enabled (NO_COLOR not set)
@@ -266,9 +266,9 @@ println!("stdout color level: {:?}", caps.color_level);
 
 `ColorDepthMode::Auto` detects color depth from the output target and
 environment. `ColorDepthMode::Ansi16`, `Ansi256`, and `TrueColor` force a
-specific depth. `ColorDepthMode::NoColor` disables ANSI output unless rendering
-to an exact `RenderTarget::Capabilities` target; `ColorMode::Never` still
-disables all targets.
+specific depth. `ColorDepthMode::NoColor` disables all color and style output
+unless rendering to an exact `RenderTarget::Capabilities` target;
+`ColorMode::Never` still disables all targets.
 
 For non-stdout destinations, use `StyledText::render` with a `RenderTarget` so
 `Auto` mode evaluates the real output target:
