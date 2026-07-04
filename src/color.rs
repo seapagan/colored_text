@@ -146,46 +146,64 @@ pub(crate) enum ColorSpec {
 
 impl ColorSpec {
     pub(crate) fn foreground_code(&self, level: ColorLevel) -> Option<String> {
-        match self {
-            Self::Named(color) if level >= ColorLevel::Ansi16 => {
-                Some(color.foreground_code().to_string())
-            }
-            Self::Ansi256(index) if level >= ColorLevel::Ansi256 => Some(format!("38;5;{index}")),
-            Self::Ansi256(index) if level == ColorLevel::Ansi16 => {
-                Some(ansi256_to_named_color(*index).foreground_code().to_string())
-            }
-            Self::Rgb(r, g, b) if level == ColorLevel::TrueColor => {
-                Some(format!("38;2;{};{};{}", r, g, b))
-            }
-            Self::Rgb(r, g, b) if level == ColorLevel::Ansi256 => {
-                Some(format!("38;5;{}", rgb_to_ansi256(*r, *g, *b)))
-            }
-            Self::Rgb(r, g, b) if level == ColorLevel::Ansi16 => {
-                Some(rgb_to_named_color(*r, *g, *b).foreground_code().to_string())
-            }
-            _ => None,
-        }
+        self.code(level, ColorPosition::Foreground)
     }
 
     pub(crate) fn background_code(&self, level: ColorLevel) -> Option<String> {
+        self.code(level, ColorPosition::Background)
+    }
+
+    fn code(&self, level: ColorLevel, position: ColorPosition) -> Option<String> {
+        match (level, self) {
+            (ColorLevel::NoColor, _) => None,
+            (_, Self::Named(color)) => Some(position.named_code(*color).to_string()),
+            (ColorLevel::Ansi16, Self::Ansi256(index)) => Some(
+                position
+                    .named_code(ansi256_to_named_color(*index))
+                    .to_string(),
+            ),
+            (ColorLevel::Ansi16, Self::Rgb(r, g, b)) => Some(
+                position
+                    .named_code(rgb_to_named_color(*r, *g, *b))
+                    .to_string(),
+            ),
+            (ColorLevel::Ansi256 | ColorLevel::TrueColor, Self::Ansi256(index)) => {
+                Some(format!("{};5;{index}", position.extended_prefix()))
+            }
+            (ColorLevel::Ansi256, Self::Rgb(r, g, b)) => Some(format!(
+                "{};5;{}",
+                position.extended_prefix(),
+                rgb_to_ansi256(*r, *g, *b)
+            )),
+            (ColorLevel::TrueColor, Self::Rgb(r, g, b)) => Some(format!(
+                "{};2;{};{};{}",
+                position.extended_prefix(),
+                r,
+                g,
+                b
+            )),
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum ColorPosition {
+    Foreground,
+    Background,
+}
+
+impl ColorPosition {
+    fn named_code(self, color: NamedColor) -> &'static str {
         match self {
-            Self::Named(color) if level >= ColorLevel::Ansi16 => {
-                Some(color.background_code().to_string())
-            }
-            Self::Ansi256(index) if level >= ColorLevel::Ansi256 => Some(format!("48;5;{index}")),
-            Self::Ansi256(index) if level == ColorLevel::Ansi16 => {
-                Some(ansi256_to_named_color(*index).background_code().to_string())
-            }
-            Self::Rgb(r, g, b) if level == ColorLevel::TrueColor => {
-                Some(format!("48;2;{};{};{}", r, g, b))
-            }
-            Self::Rgb(r, g, b) if level == ColorLevel::Ansi256 => {
-                Some(format!("48;5;{}", rgb_to_ansi256(*r, *g, *b)))
-            }
-            Self::Rgb(r, g, b) if level == ColorLevel::Ansi16 => {
-                Some(rgb_to_named_color(*r, *g, *b).background_code().to_string())
-            }
-            _ => None,
+            Self::Foreground => color.foreground_code(),
+            Self::Background => color.background_code(),
+        }
+    }
+
+    fn extended_prefix(self) -> &'static str {
+        match self {
+            Self::Foreground => "38",
+            Self::Background => "48",
         }
     }
 }
