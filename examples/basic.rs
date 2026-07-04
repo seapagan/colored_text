@@ -95,6 +95,8 @@ fn main() {
     println!("stdout is terminal: {}", caps.is_terminal);
     println!("stdout color level: {:?}", caps.color_level);
 
+    // Runtime configuration is thread-local. Reset it after forcing modes for
+    // a specific output path.
     ColorizeConfig::set_color_mode(ColorMode::Always);
     println!("{}", "Forced color".red().bold());
     ColorizeConfig::set_color_depth_mode(ColorDepthMode::TrueColor);

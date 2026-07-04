@@ -208,9 +208,9 @@ variable. If `NO_COLOR` is set (to any value), all color and style methods will
 return plain unformatted text. This makes it easy to disable all colors globally
 if needed.
 
-`FORCE_COLOR` and explicit `ColorDepthMode` settings are treated as intentional
-overrides and can enable color even when `NO_COLOR` is set. `ColorMode::Never`
-always wins and disables all color and style output.
+`NO_COLOR` is treated as an intentional user opt-out and always disables color
+and style output. If `NO_COLOR` is not set, `ColorMode::Never` and
+`ColorDepthMode::NoColor` also disable color and style output.
 
 ```rust
 // Colors enabled (NO_COLOR not set)
@@ -265,10 +265,19 @@ println!("stdout color level: {:?}", caps.color_level);
 ```
 
 `ColorDepthMode::Auto` detects color depth from the output target and
-environment. `ColorDepthMode::Ansi16`, `Ansi256`, and `TrueColor` force a
-specific depth. `ColorDepthMode::NoColor` disables all color and style output
-unless rendering to an exact `RenderTarget::Capabilities` target;
-`ColorMode::Never` still disables all targets.
+environment. When color output is not disabled, `FORCE_COLOR` overrides explicit
+color depth and automatic detection. Without `FORCE_COLOR`,
+`ColorDepthMode::Ansi16`, `Ansi256`, and `TrueColor` force a specific depth, and
+`ColorDepthMode::NoColor` disables all color and style output.
+
+Color control precedence is:
+
+1. `NO_COLOR`
+2. `ColorMode::Never`
+3. `ColorDepthMode::NoColor`
+4. `FORCE_COLOR`
+5. explicit `ColorDepthMode::{Ansi16, Ansi256, TrueColor}`
+6. automatic terminal detection
 
 For non-stdout destinations, use `StyledText::render` with a `RenderTarget` so
 `Auto` mode evaluates the real output target:
