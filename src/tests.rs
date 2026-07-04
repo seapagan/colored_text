@@ -193,6 +193,36 @@ fn test_rgb_colors(#[case] r: u8, #[case] g: u8, #[case] b: u8) {
 }
 
 #[rstest]
+#[case(0, "\x1b[38;5;0mtest\x1b[0m")]
+#[case(255, "\x1b[38;5;255mtest\x1b[0m")]
+fn test_ansi256_foreground_colors(#[case] index: u8, #[case] expected: &str) {
+    let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+    assert_eq!("test".ansi256(index).to_string(), expected);
+}
+
+#[test]
+fn test_ansi256_background_colors() {
+    let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+    assert_eq!(
+        "test".on_ansi256(236).to_string(),
+        "\x1b[48;5;236mtest\x1b[0m"
+    );
+}
+
+#[test]
+fn test_color256_aliases_match_ansi256_methods() {
+    let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+    assert_eq!(
+        "test".color256(208).to_string(),
+        "test".ansi256(208).to_string()
+    );
+    assert_eq!(
+        "test".on_color256(236).to_string(),
+        "test".on_ansi256(236).to_string()
+    );
+}
+
+#[rstest]
 #[case("#ff8000", 255, 128, 0)]
 #[case("#f80", 255, 136, 0)]
 #[case("#00ff00", 0, 255, 0)]
@@ -246,6 +276,7 @@ fn test_clear_returns_plain_text() {
     let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
     assert_eq!("test".clear().to_string(), "test");
     assert_eq!("test".red().clear().to_string(), "test");
+    assert_eq!("test".ansi256(208).clear().to_string(), "test");
     assert_eq!(
         "test".blue().italic().on_yellow().clear().to_string(),
         "test"
@@ -264,6 +295,10 @@ fn test_chaining_composes_once() {
         "test".rgb(255, 128, 0).on_blue().to_string(),
         "\x1b[38;2;255;128;0;44mtest\x1b[0m"
     );
+    assert_eq!(
+        "test".ansi256(208).bold().on_ansi256(236).to_string(),
+        "\x1b[1;38;5;208;48;5;236mtest\x1b[0m"
+    );
 }
 
 #[test]
@@ -271,6 +306,15 @@ fn test_conflicting_chains_use_last_color() {
     let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
     assert_eq!("test".red().green().to_string(), "\x1b[32mtest\x1b[0m");
     assert_eq!("test".on_red().on_blue().to_string(), "\x1b[44mtest\x1b[0m");
+    assert_eq!(
+        "test".red().ansi256(208).to_string(),
+        "\x1b[38;5;208mtest\x1b[0m"
+    );
+    assert_eq!("test".ansi256(208).red().to_string(), "\x1b[31mtest\x1b[0m");
+    assert_eq!(
+        "test".on_blue().on_ansi256(236).to_string(),
+        "\x1b[48;5;236mtest\x1b[0m"
+    );
 }
 
 #[test]
@@ -493,6 +537,7 @@ fn test_color_mode_never_disables_color() {
     let _guard = TestStateGuard::colors_enabled(ColorMode::Never);
     assert_eq!("test".red().to_string(), "test");
     assert_eq!("test".blue().italic().on_yellow().to_string(), "test");
+    assert_eq!("test".ansi256(208).to_string(), "test");
 }
 
 #[test]
@@ -500,6 +545,7 @@ fn test_no_color_disables_output_in_auto_and_always() {
     let _guard = TestStateGuard::no_color(ColorMode::Always);
     assert_eq!("test".red().to_string(), "test");
     assert_eq!("test".blue().italic().on_yellow().to_string(), "test");
+    assert_eq!("test".ansi256(208).to_string(), "test");
 }
 
 #[test]
@@ -533,6 +579,12 @@ fn test_raw_colorize_codes_still_render() {
 #[case(NamedColor::BrightWhite, "107")]
 fn test_bright_background_color_codes(#[case] color: NamedColor, #[case] expected: &str) {
     assert_eq!(ColorSpec::Named(color).background_code(), expected);
+}
+
+#[test]
+fn test_ansi256_color_codes() {
+    assert_eq!(ColorSpec::Ansi256(208).foreground_code(), "38;5;208");
+    assert_eq!(ColorSpec::Ansi256(236).background_code(), "48;5;236");
 }
 
 #[test]

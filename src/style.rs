@@ -255,6 +255,26 @@ impl StyledText {
         self.with_background(ColorSpec::Named(NamedColor::Black))
     }
 
+    /// Apply an ANSI 256-color foreground.
+    pub fn ansi256(self, index: u8) -> Self {
+        self.with_foreground(ColorSpec::Ansi256(index))
+    }
+
+    /// Apply an ANSI 256-color background.
+    pub fn on_ansi256(self, index: u8) -> Self {
+        self.with_background(ColorSpec::Ansi256(index))
+    }
+
+    /// Alias for [`Self::ansi256`].
+    pub fn color256(self, index: u8) -> Self {
+        self.ansi256(index)
+    }
+
+    /// Alias for [`Self::on_ansi256`].
+    pub fn on_color256(self, index: u8) -> Self {
+        self.on_ansi256(index)
+    }
+
     /// Apply a true-color RGB foreground.
     pub fn rgb(self, r: u8, g: u8, b: u8) -> Self {
         self.with_foreground(ColorSpec::Rgb(r, g, b))
@@ -407,6 +427,15 @@ pub trait Colorize {
     /// Apply the standard black background color.
     fn on_black(&self) -> StyledText;
 
+    /// Apply an ANSI 256-color foreground.
+    fn ansi256(&self, index: u8) -> StyledText;
+    /// Apply an ANSI 256-color background.
+    fn on_ansi256(&self, index: u8) -> StyledText;
+    /// Alias for [`Colorize::ansi256`].
+    fn color256(&self, index: u8) -> StyledText;
+    /// Alias for [`Colorize::on_ansi256`].
+    fn on_color256(&self, index: u8) -> StyledText;
+
     /// Apply a true-color RGB foreground.
     fn rgb(&self, r: u8, g: u8, b: u8) -> StyledText;
     /// Apply a true-color RGB background.
@@ -542,6 +571,22 @@ impl<T: Display> Colorize for T {
 
     fn on_black(&self) -> StyledText {
         StyledText::plain(self.to_string()).on_black()
+    }
+
+    fn ansi256(&self, index: u8) -> StyledText {
+        StyledText::plain(self.to_string()).ansi256(index)
+    }
+
+    fn on_ansi256(&self, index: u8) -> StyledText {
+        StyledText::plain(self.to_string()).on_ansi256(index)
+    }
+
+    fn color256(&self, index: u8) -> StyledText {
+        self.ansi256(index)
+    }
+
+    fn on_color256(&self, index: u8) -> StyledText {
+        self.on_ansi256(index)
     }
 
     fn rgb(&self, r: u8, g: u8, b: u8) -> StyledText {

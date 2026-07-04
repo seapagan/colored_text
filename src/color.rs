@@ -114,6 +114,7 @@ impl NamedColor {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum ColorSpec {
     Named(NamedColor),
+    Ansi256(u8),
     Rgb(u8, u8, u8),
 }
 
@@ -121,6 +122,7 @@ impl ColorSpec {
     pub(crate) fn foreground_code(&self) -> String {
         match self {
             Self::Named(color) => color.foreground_code().to_string(),
+            Self::Ansi256(index) => format!("38;5;{index}"),
             Self::Rgb(r, g, b) => format!("38;2;{};{};{}", r, g, b),
         }
     }
@@ -128,6 +130,7 @@ impl ColorSpec {
     pub(crate) fn background_code(&self) -> String {
         match self {
             Self::Named(color) => color.background_code().to_string(),
+            Self::Ansi256(index) => format!("48;5;{index}"),
             Self::Rgb(r, g, b) => format!("48;2;{};{};{}", r, g, b),
         }
     }
