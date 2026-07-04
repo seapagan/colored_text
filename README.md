@@ -293,6 +293,9 @@ precedence is:
 accepts false-like values to disable color and values such as `1`, `2`, `3`,
 `ansi16`, `ansi256`, and `truecolor` to force a depth. Explicit positive
 `ColorDepthMode` values apply only when `FORCE_COLOR` is not set.
+`CLICOLOR_FORCE` follows the common convention that any non-empty value except
+`0` force-enables color. `CLICOLOR=0` disables color unless overridden by
+`FORCE_COLOR` or `CLICOLOR_FORCE`, including when `ColorMode::Always` is set.
 
 For `RenderTarget::Capabilities`, the supplied `TerminalCapabilities` are exact:
 `FORCE_COLOR`, `CLICOLOR`, and positive `ColorDepthMode` values do not raise or
