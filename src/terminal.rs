@@ -86,8 +86,7 @@ pub(crate) fn detect_color_level(
     }
 
     let explicit_depth = match depth_mode {
-        ColorDepthMode::Auto => None,
-        ColorDepthMode::NoColor => unreachable!("handled by hard_disable_level"),
+        ColorDepthMode::Auto | ColorDepthMode::NoColor => None,
         ColorDepthMode::Ansi16 => Some(ColorLevel::Ansi16),
         ColorDepthMode::Ansi256 => Some(ColorLevel::Ansi256),
         ColorDepthMode::TrueColor => Some(ColorLevel::TrueColor),
@@ -125,11 +124,7 @@ pub(crate) fn detect_color_level(
         return ColorLevel::Ansi16;
     }
 
-    if color_mode == ColorMode::Always || is_terminal {
-        return ColorLevel::TrueColor;
-    }
-
-    ColorLevel::NoColor
+    ColorLevel::TrueColor
 }
 
 fn hard_disable_level(

@@ -1020,6 +1020,7 @@ fn test_ansi256_palette_rgb_values(#[case] index: u8, #[case] expected: (u8, u8,
 }
 
 #[rstest]
+#[case((0, 0, 0), 0)]
 #[case((255, 128, 0), 208)]
 #[case((0, 0, 255), 12)]
 #[case((128, 128, 128), 8)]
