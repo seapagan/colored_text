@@ -709,6 +709,21 @@ fn test_terminal_capabilities_for_known_target() {
 }
 
 #[test]
+fn test_terminal_capabilities_accessor_returns_known_target_capabilities() {
+    let _guard =
+        TestStateGuard::with_depth(ColorMode::Auto, ColorDepthMode::Auto, None, Some(false));
+    let expected = TerminalCapabilities {
+        is_terminal: true,
+        color_level: ColorLevel::Ansi256,
+    };
+
+    assert_eq!(
+        ColorizeConfig::terminal_capabilities(RenderTarget::Capabilities(expected)),
+        expected
+    );
+}
+
+#[test]
 fn test_terminal_capabilities_respect_color_mode_never() {
     let _guard = TestStateGuard::colors_enabled(ColorMode::Never);
     let target = RenderTarget::Capabilities(TerminalCapabilities {

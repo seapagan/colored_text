@@ -149,16 +149,11 @@ fn capabilities_for(target: RenderTarget) -> TerminalCapabilities {
             color_level: color_level_for_capabilities(capabilities, color_mode, depth_mode),
             ..capabilities
         },
-        _ => terminal_capabilities(target_is_terminal(target), color_mode, depth_mode),
-    }
-}
-
-fn target_is_terminal(target: RenderTarget) -> bool {
-    match target {
-        RenderTarget::Stdout => stdout_is_terminal(),
-        RenderTarget::Stderr => stderr_is_terminal(),
-        RenderTarget::Terminal(value) => value,
-        RenderTarget::Capabilities(capabilities) => capabilities.is_terminal,
+        RenderTarget::Stdout => terminal_capabilities(stdout_is_terminal(), color_mode, depth_mode),
+        RenderTarget::Stderr => terminal_capabilities(stderr_is_terminal(), color_mode, depth_mode),
+        RenderTarget::Terminal(is_terminal) => {
+            terminal_capabilities(is_terminal, color_mode, depth_mode)
+        }
     }
 }
 
