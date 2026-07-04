@@ -56,9 +56,17 @@ pub(crate) fn terminal_capabilities(
 pub(crate) fn color_level_for_capabilities(
     capabilities: TerminalCapabilities,
     color_mode: ColorMode,
-    _depth_mode: ColorDepthMode,
+    depth_mode: ColorDepthMode,
 ) -> ColorLevel {
+    if ProcessEnv.is_non_empty("NO_COLOR") {
+        return ColorLevel::NoColor;
+    }
+
     if color_mode == ColorMode::Never {
+        return ColorLevel::NoColor;
+    }
+
+    if depth_mode == ColorDepthMode::NoColor {
         return ColorLevel::NoColor;
     }
 
@@ -71,6 +79,10 @@ pub(crate) fn detect_color_level(
     depth_mode: ColorDepthMode,
     env: &impl EnvProvider,
 ) -> ColorLevel {
+    if env.is_non_empty("NO_COLOR") {
+        return ColorLevel::NoColor;
+    }
+
     if color_mode == ColorMode::Never {
         return ColorLevel::NoColor;
     }
@@ -94,10 +106,6 @@ pub(crate) fn detect_color_level(
     let clicolor_forced = env
         .get("CLICOLOR_FORCE")
         .is_some_and(|value| !value.is_empty() && value != "0");
-
-    if env.is_non_empty("NO_COLOR") {
-        return ColorLevel::NoColor;
-    }
 
     if env.get("CLICOLOR").as_deref() == Some("0") {
         return ColorLevel::NoColor;
@@ -124,19 +132,22 @@ fn force_color_level(env: &impl EnvProvider) -> Option<ColorLevel> {
     let normalized = normalize_env_value(&value);
 
     match normalized.as_str() {
+        "" => None,
         "0" | "no_color" | "none" | "never" | "false" | "off" => Some(ColorLevel::NoColor),
         "1" | "ansi" | "ansi16" | "basic" | "true" | "yes" | "on" => Some(ColorLevel::Ansi16),
         "2" | "ansi256" | "256" | "8bit" | "8-bit" => Some(ColorLevel::Ansi256),
         "3" | "truecolor" | "true_color" | "24bit" | "24-bit" | "16m" => {
             Some(ColorLevel::TrueColor)
         }
-        "" => Some(ColorLevel::Ansi16),
         _ => Some(ColorLevel::Ansi16),
     }
 }
 
 fn detect_env_color_level(env: &impl EnvProvider) -> ColorLevel {
-    if env.get("TERM").is_some_and(|term| term == "dumb") {
+    if env
+        .get("TERM")
+        .is_some_and(|term| term.eq_ignore_ascii_case("dumb"))
+    {
         return ColorLevel::NoColor;
     }
 

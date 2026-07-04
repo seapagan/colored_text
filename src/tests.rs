@@ -415,6 +415,17 @@ fn test_format_macro_uses_display() {
     assert_eq!(format!("{}", "test".red()), "\x1b[31mtest\x1b[0m");
 }
 
+#[test]
+fn test_empty_text_keeps_styling_when_color_is_enabled() {
+    let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+    assert_eq!("".red().to_string(), "\x1b[31m\x1b[0m");
+    assert_eq!("".bold().to_string(), "\x1b[1m\x1b[0m");
+    assert_eq!(
+        "".rgb(255, 128, 0).to_string(),
+        "\x1b[38;2;255;128;0m\x1b[0m"
+    );
+}
+
 fn assert_rgb_approx_eq(actual: &str, expected: &str) {
     let extract_rgb = |s: &str| {
         let start = s.find("38;2;").or_else(|| s.find("48;2;"));
@@ -643,9 +654,9 @@ fn test_no_color_disables_output_in_auto_and_always() {
 )]
 #[case(ColorMode::Auto, ColorDepthMode::Auto, true, TestEnv::default().with("FORCE_COLOR", "0"), ColorLevel::NoColor)]
 #[case(ColorMode::Auto, ColorDepthMode::Auto, true, TestEnv::default().with("FORCE_COLOR", "false"), ColorLevel::NoColor)]
-#[case(ColorMode::Auto, ColorDepthMode::Ansi16, true, TestEnv::default().with("NO_COLOR", "1"), ColorLevel::Ansi16)]
-#[case(ColorMode::Auto, ColorDepthMode::Ansi256, true, TestEnv::default().with("NO_COLOR", "1"), ColorLevel::Ansi256)]
-#[case(ColorMode::Auto, ColorDepthMode::TrueColor, true, TestEnv::default().with("NO_COLOR", "1"), ColorLevel::TrueColor)]
+#[case(ColorMode::Auto, ColorDepthMode::Ansi16, true, TestEnv::default().with("NO_COLOR", "1"), ColorLevel::NoColor)]
+#[case(ColorMode::Auto, ColorDepthMode::Ansi256, true, TestEnv::default().with("NO_COLOR", "1"), ColorLevel::NoColor)]
+#[case(ColorMode::Auto, ColorDepthMode::TrueColor, true, TestEnv::default().with("NO_COLOR", "1"), ColorLevel::NoColor)]
 #[case(ColorMode::Never, ColorDepthMode::TrueColor, true, TestEnv::default().with("FORCE_COLOR", "3"), ColorLevel::NoColor)]
 fn test_color_level_precedence(
     #[case] color_mode: ColorMode,
@@ -677,12 +688,50 @@ fn test_force_color_values(#[case] value: &str, #[case] expected: ColorLevel) {
 }
 
 #[rstest]
-#[case("", ColorLevel::Ansi16)]
-#[case("sometimes", ColorLevel::Ansi16)]
-fn test_force_color_fallback_values(#[case] value: &str, #[case] expected: ColorLevel) {
-    let env = TestEnv::default().with("FORCE_COLOR", value);
+#[case(ColorDepthMode::Ansi16, "3", ColorLevel::TrueColor)]
+#[case(ColorDepthMode::Ansi256, "1", ColorLevel::Ansi16)]
+#[case(ColorDepthMode::TrueColor, "2", ColorLevel::Ansi256)]
+#[case(ColorDepthMode::TrueColor, "0", ColorLevel::NoColor)]
+fn test_force_color_overrides_explicit_color_depth(
+    #[case] depth_mode: ColorDepthMode,
+    #[case] force_color: &str,
+    #[case] expected: ColorLevel,
+) {
+    let env = TestEnv::default().with("FORCE_COLOR", force_color);
     assert_eq!(
-        detect_color_level(false, ColorMode::Auto, ColorDepthMode::Auto, &env),
+        detect_color_level(true, ColorMode::Auto, depth_mode, &env),
+        expected
+    );
+}
+
+#[rstest]
+#[case(ColorMode::Never, ColorDepthMode::TrueColor, "3")]
+#[case(ColorMode::Auto, ColorDepthMode::NoColor, "3")]
+fn test_hard_disable_modes_override_force_color(
+    #[case] color_mode: ColorMode,
+    #[case] depth_mode: ColorDepthMode,
+    #[case] force_color: &str,
+) {
+    let env = TestEnv::default().with("FORCE_COLOR", force_color);
+    assert_eq!(
+        detect_color_level(true, color_mode, depth_mode, &env),
+        ColorLevel::NoColor
+    );
+}
+
+#[rstest]
+#[case("", true, TestEnv::default().with("TERM", "xterm-256color"), ColorLevel::Ansi256)]
+#[case("", false, TestEnv::default(), ColorLevel::NoColor)]
+#[case("sometimes", false, TestEnv::default(), ColorLevel::Ansi16)]
+fn test_force_color_fallback_values(
+    #[case] value: &str,
+    #[case] is_terminal: bool,
+    #[case] env: TestEnv,
+    #[case] expected: ColorLevel,
+) {
+    let env = env.with("FORCE_COLOR", value);
+    assert_eq!(
+        detect_color_level(is_terminal, ColorMode::Auto, ColorDepthMode::Auto, &env),
         expected
     );
 }
@@ -693,6 +742,7 @@ fn test_force_color_fallback_values(#[case] value: &str, #[case] expected: Color
 #[case(TestEnv::default().with("CLICOLOR_FORCE", "1"), false, ColorLevel::Ansi16)]
 #[case(TestEnv::default(), false, ColorLevel::NoColor)]
 #[case(TestEnv::default().with("TERM", "dumb"), true, ColorLevel::NoColor)]
+#[case(TestEnv::default().with("TERM", "DUMB"), true, ColorLevel::NoColor)]
 #[case(TestEnv::default().with("COLORTERM", "truecolor"), true, ColorLevel::TrueColor)]
 #[case(TestEnv::default().with("COLORTERM", "24bit"), true, ColorLevel::TrueColor)]
 #[case(TestEnv::default().with("TERM", "xterm-256color"), true, ColorLevel::Ansi256)]
@@ -778,6 +828,31 @@ fn test_terminal_capabilities_accessor_returns_known_target_capabilities() {
 #[test]
 fn test_terminal_capabilities_respect_color_mode_never() {
     let _guard = TestStateGuard::colors_enabled(ColorMode::Never);
+    let target = RenderTarget::Capabilities(TerminalCapabilities {
+        is_terminal: true,
+        color_level: ColorLevel::TrueColor,
+    });
+
+    assert_eq!(ColorizeConfig::color_level(target), ColorLevel::NoColor);
+    assert_eq!("test".red().render(target), "test");
+}
+
+#[test]
+fn test_terminal_capabilities_respect_no_color_env() {
+    let _guard = TestStateGuard::no_color(ColorMode::Always);
+    let target = RenderTarget::Capabilities(TerminalCapabilities {
+        is_terminal: true,
+        color_level: ColorLevel::TrueColor,
+    });
+
+    assert_eq!(ColorizeConfig::color_level(target), ColorLevel::NoColor);
+    assert_eq!("test".red().render(target), "test");
+}
+
+#[test]
+fn test_terminal_capabilities_respect_color_depth_no_color() {
+    let _guard =
+        TestStateGuard::with_depth(ColorMode::Always, ColorDepthMode::NoColor, None, Some(true));
     let target = RenderTarget::Capabilities(TerminalCapabilities {
         is_terminal: true,
         color_level: ColorLevel::TrueColor,
