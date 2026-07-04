@@ -23,7 +23,7 @@ Rust.
   `COLORTERM`, `CI`, `WT_SESSION`, `ConEmuANSI`, and `ANSICON`
 - Supports explicit runtime color modes: `Auto`, `Always`, and `Never`
 - Detects if the output is NOT going to a terminal (e.g. is going to a file or a
-  pipe) and disables colors in `Auto` mode
+  pipe) and disables colors in `Auto` mode unless color is force-enabled
 - Supports explicit target-aware rendering for stdout, stderr, or custom
   terminal-aware destinations
 - Complete documentation and examples
@@ -235,8 +235,8 @@ parsing, or runtime dependencies.
 ## Runtime Color Modes
 
 By default, this library uses `ColorMode::Auto`: it checks if stdout is going to
-a terminal and disables colors when it is not. Applications can override that
-behavior explicitly using `ColorizeConfig`:
+a terminal and disables colors when it is not, unless color is force-enabled.
+Applications can override that behavior explicitly using `ColorizeConfig`:
 
 ```rust
 use colored_text::{ColorMode, Colorize, ColorizeConfig};
@@ -272,19 +272,32 @@ println!("stdout color level: {:?}", caps.color_level);
 ```
 
 `ColorDepthMode::Auto` detects color depth from the output target and
-environment. When color output is not disabled, `FORCE_COLOR` overrides explicit
-color depth and automatic detection. Without `FORCE_COLOR`,
-`ColorDepthMode::Ansi16`, `Ansi256`, and `TrueColor` force a specific depth, and
-`ColorDepthMode::NoColor` disables all color and style output.
+environment. When color output is enabled and no limiting depth signal is found,
+`Auto` on a terminal and `Always` both preserve full-fidelity truecolor output.
+`CLICOLOR_FORCE` force-enables color but does not specify a color depth, so it
+falls back to ANSI 16 unless other environment hints raise the level.
 
-Color control precedence is:
+For normal targets (`Stdout`, `Stderr`, and `Terminal(bool)`), color control
+precedence is:
 
 1. `NO_COLOR`
 2. `ColorMode::Never`
 3. `ColorDepthMode::NoColor`
 4. `FORCE_COLOR`
 5. explicit `ColorDepthMode::{Ansi16, Ansi256, TrueColor}`
-6. automatic terminal detection
+6. `CLICOLOR=0`
+7. `Auto` non-terminal suppression, unless force-enabled
+8. automatic terminal and environment detection
+
+`NO_COLOR` is presence-based, so even `NO_COLOR=""` disables color. `FORCE_COLOR`
+accepts false-like values to disable color and values such as `1`, `2`, `3`,
+`ansi16`, `ansi256`, and `truecolor` to force a depth. Explicit positive
+`ColorDepthMode` values apply only when `FORCE_COLOR` is not set.
+
+For `RenderTarget::Capabilities`, the supplied `TerminalCapabilities` are exact:
+`FORCE_COLOR`, `CLICOLOR`, and positive `ColorDepthMode` values do not raise or
+lower the supplied color level. Only hard disables apply: `NO_COLOR`,
+`ColorMode::Never`, and `ColorDepthMode::NoColor`.
 
 For non-stdout destinations, use `StyledText::render` with a `RenderTarget` so
 `Auto` mode evaluates the real output target:
