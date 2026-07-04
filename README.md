@@ -12,7 +12,7 @@ Rust.
 - Simple method-call syntax for applying colors and styles
 - Support for basic colors, bright colors, and background colors
 - Text styling (bold, dim, italic, underline, inverse, strikethrough)
-- RGB and HEX color support for both text and background
+- ANSI 256, RGB, and HEX color support for both text and background
 - Composed style chaining with predictable override behavior
 - Works with string literals, owned strings, and format macros
 - Zero dependencies
@@ -53,7 +53,9 @@ println!("{}", "Bold text".bold());
 println!("{}", "Italic text".italic());
 println!("{}", "Underlined text".underline());
 
-// RGB and Hex colors
+// ANSI 256, RGB, and Hex colors
+println!("{}", "ANSI 256 color".ansi256(208));
+println!("{}", "ANSI 256 background".on_ansi256(236));
 println!("{}", "Custom color".rgb(255, 128, 0));
 println!("{}", "Custom background".on_rgb(0, 128, 255));
 println!("{}", "Hex color".hex("#ff8000"));
@@ -127,8 +129,14 @@ println!("{}", "Back to plain text".red().bold().clear());
 - `.inverse()` - Swap foreground and background colors
 - `.strikethrough()` - Draw a line through the text
 
-### RGB, HSL, and Hex Colors
+### ANSI 256, RGB, HSL, and Hex Colors
 
+- `.ansi256(index)` - Custom text color using an ANSI 256-color index (0-255,
+  compile-time enforced)
+- `.on_ansi256(index)` - Custom background color using an ANSI 256-color index
+  (0-255, compile-time enforced)
+- `.color256(index)` - Alias for `.ansi256(index)`
+- `.on_color256(index)` - Alias for `.on_ansi256(index)`
 - `.rgb(r, g, b)` - Custom text color using RGB values (0-255, compile-time
   enforced)
 - `.on_rgb(r, g, b)` - Custom background color using RGB values (0-255,
@@ -148,6 +156,8 @@ println!("{}", "Back to plain text".red().bold().clear());
 
 - RGB values must be in range 0-255 (enforced at compile time via `u8` type)
 - Attempting to use RGB values > 255 will result in a compile error
+- ANSI 256-color indexes must be in range 0-255 (enforced at compile time via
+  `u8` type)
 - Hex color codes can be provided with or without the '#' prefix in either
   3-character shorthand or 6-character full form
 - Invalid hex codes (wrong length, invalid characters) will result in plain
@@ -163,6 +173,11 @@ println!("{}", "Red".hsl(0.0, 100.0, 50.0));     // Pure red
 println!("{}", "Green".hsl(120.0, 100.0, 50.0)); // Pure green
 println!("{}", "Blue".hsl(240.0, 100.0, 50.0));  // Pure blue
 println!("{}", "Gray".hsl(0.0, 0.0, 50.0));      // 50% gray
+
+// ANSI 256-color indexes use SGR 38;5/48;5 output
+println!("{}", "Orange".ansi256(208));
+println!("{}", "Dark background".on_ansi256(236));
+println!("{}", "Alias".color256(208).on_color256(236));
 
 // Hex colors work with or without #
 println!("{}", "Hex color".hex("#ff8000"));
@@ -215,6 +230,10 @@ applications that want to force color on or off for a specific execution path.
 `NO_COLOR` still takes precedence in `Auto` and `Always` mode. If `NO_COLOR` is
 set, output is plain text.
 
+ANSI 256-color methods use the same runtime policy as the named, RGB, HSL, and
+hex color methods. `ColorMode` and `NO_COLOR` control whether ANSI 256 SGR
+output is emitted.
+
 For non-stdout destinations, use `StyledText::render` with a `RenderTarget` so
 `Auto` mode evaluates the real output target:
 
@@ -238,6 +257,8 @@ your terminal emulator and its configuration:
 - Basic colors (codes 30-37) are widely supported
 - Bright colors (codes 90-97) may appear the same as basic colors in some
   terminals or themes (pastel themes like Catppuccin especially)
+- ANSI 256 colors use 256-color palette indexes with `38;5` and `48;5` SGR
+  sequences
 - RGB colors require true color support in your terminal
 - Some styling options (like italic) might not work in all terminals
 
