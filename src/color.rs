@@ -300,6 +300,8 @@ pub(crate) fn rgb_to_named_color(r: u8, g: u8, b: u8) -> NamedColor {
 
     for (color, rgb) in named_color_candidates() {
         let distance = distance_squared(target, rgb);
+        // Strict comparison keeps ANSI palette order as the deterministic
+        // tie-breaker.
         if distance < best_distance {
             best = color;
             best_distance = distance;

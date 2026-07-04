@@ -1034,6 +1034,11 @@ fn test_rgb_to_named_color_known_values(#[case] rgb: (u8, u8, u8), #[case] expec
     assert_eq!(rgb_to_named_color(rgb.0, rgb.1, rgb.2), expected);
 }
 
+#[test]
+fn test_rgb_to_named_color_ties_use_palette_order() {
+    assert_eq!(rgb_to_named_color(64, 64, 64), NamedColor::Black);
+}
+
 #[rstest]
 #[case(8, NamedColor::BrightBlack)]
 #[case(12, NamedColor::BrightBlue)]
