@@ -649,6 +649,17 @@ fn test_force_color_values(#[case] value: &str, #[case] expected: ColorLevel) {
 }
 
 #[rstest]
+#[case("", ColorLevel::Ansi16)]
+#[case("sometimes", ColorLevel::Ansi16)]
+fn test_force_color_fallback_values(#[case] value: &str, #[case] expected: ColorLevel) {
+    let env = TestEnv::default().with("FORCE_COLOR", value);
+    assert_eq!(
+        detect_color_level(false, ColorMode::Auto, ColorDepthMode::Auto, &env),
+        expected
+    );
+}
+
+#[rstest]
 #[case(TestEnv::default().with("NO_COLOR", "1"), true, ColorLevel::NoColor)]
 #[case(TestEnv::default().with("CLICOLOR", "0"), true, ColorLevel::NoColor)]
 #[case(TestEnv::default().with("CLICOLOR_FORCE", "1"), false, ColorLevel::Ansi16)]
@@ -682,6 +693,19 @@ fn test_clicolor_force_can_still_detect_higher_depth() {
     assert_eq!(
         detect_color_level(false, ColorMode::Auto, ColorDepthMode::Auto, &env),
         ColorLevel::TrueColor
+    );
+}
+
+#[test]
+fn test_always_mode_enables_basic_color_without_terminal_env() {
+    assert_eq!(
+        detect_color_level(
+            false,
+            ColorMode::Always,
+            ColorDepthMode::Auto,
+            &TestEnv::default()
+        ),
+        ColorLevel::Ansi16
     );
 }
 
@@ -775,6 +799,64 @@ fn test_ansi256_degrades_by_color_level(#[case] level: ColorLevel, #[case] expec
     });
 
     assert_eq!("test".ansi256(208).render(target), expected);
+}
+
+#[rstest]
+#[case(ColorLevel::TrueColor, "\x1b[48;2;255;128;0mtest\x1b[0m")]
+#[case(ColorLevel::Ansi256, "\x1b[48;5;208mtest\x1b[0m")]
+#[case(ColorLevel::Ansi16, "\x1b[43mtest\x1b[0m")]
+#[case(ColorLevel::NoColor, "test")]
+fn test_rgb_background_degrades_by_color_level(#[case] level: ColorLevel, #[case] expected: &str) {
+    let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+    let target = RenderTarget::Capabilities(TerminalCapabilities {
+        is_terminal: true,
+        color_level: level,
+    });
+
+    assert_eq!("test".on_rgb(255, 128, 0).render(target), expected);
+}
+
+#[rstest]
+#[case(ColorLevel::TrueColor, "\x1b[48;5;208mtest\x1b[0m")]
+#[case(ColorLevel::Ansi256, "\x1b[48;5;208mtest\x1b[0m")]
+#[case(ColorLevel::Ansi16, "\x1b[103mtest\x1b[0m")]
+#[case(ColorLevel::NoColor, "test")]
+fn test_ansi256_background_degrades_by_color_level(
+    #[case] level: ColorLevel,
+    #[case] expected: &str,
+) {
+    let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+    let target = RenderTarget::Capabilities(TerminalCapabilities {
+        is_terminal: true,
+        color_level: level,
+    });
+
+    assert_eq!("test".on_ansi256(208).render(target), expected);
+}
+
+#[test]
+fn test_color_specs_return_none_without_color_support() {
+    assert_eq!(
+        ColorSpec::Named(NamedColor::Red).foreground_code(ColorLevel::NoColor),
+        None
+    );
+    assert_eq!(
+        ColorSpec::Named(NamedColor::Red).background_code(ColorLevel::NoColor),
+        None
+    );
+}
+
+#[test]
+fn test_styled_text_inherent_ansi256_aliases() {
+    let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+    assert_eq!(
+        StyledText::plain("test").color256(208).to_string(),
+        "\x1b[38;5;208mtest\x1b[0m"
+    );
+    assert_eq!(
+        StyledText::plain("test").on_color256(236).to_string(),
+        "\x1b[48;5;236mtest\x1b[0m"
+    );
 }
 
 #[test]

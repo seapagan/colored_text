@@ -75,20 +75,20 @@ pub(crate) fn detect_color_level(
         return ColorLevel::NoColor;
     }
 
-    if depth_mode == ColorDepthMode::NoColor {
-        return ColorLevel::NoColor;
-    }
+    let explicit_depth = match depth_mode {
+        ColorDepthMode::Auto => None,
+        ColorDepthMode::NoColor => return ColorLevel::NoColor,
+        ColorDepthMode::Ansi16 => Some(ColorLevel::Ansi16),
+        ColorDepthMode::Ansi256 => Some(ColorLevel::Ansi256),
+        ColorDepthMode::TrueColor => Some(ColorLevel::TrueColor),
+    };
 
     if let Some(forced) = force_color_level(env) {
         return forced;
     }
 
-    match depth_mode {
-        ColorDepthMode::Auto => {}
-        ColorDepthMode::NoColor => return ColorLevel::NoColor,
-        ColorDepthMode::Ansi16 => return ColorLevel::Ansi16,
-        ColorDepthMode::Ansi256 => return ColorLevel::Ansi256,
-        ColorDepthMode::TrueColor => return ColorLevel::TrueColor,
+    if let Some(level) = explicit_depth {
+        return level;
     }
 
     let clicolor_forced = env
