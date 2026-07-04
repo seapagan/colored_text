@@ -43,9 +43,11 @@
 //! - Text styles (bold, dim, italic, underline)
 //! - ANSI 256-color foreground and background support
 //! - RGB, HSL, and Hex color support
+//! - Terminal color capability detection
+//! - RGB, HSL, and Hex degradation when truecolor is unavailable
 //! - Composed style chaining
 //! - Works with format! macro
-//! - Explicit runtime color modes
+//! - Explicit runtime color and color-depth modes
 //!
 //! # Input Handling
 //!
@@ -83,13 +85,17 @@
 //! - [`ColorMode::Never`] disables styling completely
 //!
 //! The `NO_COLOR` environment variable disables styling in `Auto` and
-//! `Always`.
+//! `Always`, unless overridden by `FORCE_COLOR` or an explicit
+//! [`ColorDepthMode`]. [`ColorMode::Never`] always disables ANSI output.
 //!
 //! ```rust
-//! use colored_text::{ColorMode, Colorize, ColorizeConfig};
+//! use colored_text::{ColorDepthMode, ColorMode, Colorize, ColorizeConfig};
 //!
 //! ColorizeConfig::set_color_mode(ColorMode::Always);
 //! println!("{}", "Always colored".red());
+//!
+//! ColorizeConfig::set_color_depth_mode(ColorDepthMode::Ansi256);
+//! println!("{}", "ANSI 256 orange".rgb(255, 128, 0));
 //!
 //! ColorizeConfig::set_color_mode(ColorMode::Never);
 //! println!("{}", "Never colored".red());
@@ -98,19 +104,29 @@
 //! When you need `Auto` mode to follow a destination other than stdout, use
 //! [`StyledText::render`] with a [`RenderTarget`].
 //!
+//! ```rust
+//! use colored_text::{ColorizeConfig, RenderTarget};
+//!
+//! let caps = ColorizeConfig::terminal_capabilities(RenderTarget::Stdout);
+//! println!("stdout color level: {:?}", caps.color_level);
+//! ```
+//!
 //! # Note
 //!
 //! Colors and styles are implemented using ANSI escape codes, which are
-//! supported by most modern terminals. If your terminal does not support ANSI
-//! escape codes, or if color output is disabled by policy, the text is
-//! displayed without styling.
+//! supported by most modern terminals. Capability detection is heuristic and
+//! environment-based; the crate does not use terminfo, termcap, active terminal
+//! queries, WinAPI console enablement, CLI parsing, or runtime dependencies. If
+//! color output is disabled by policy, the text is displayed without styling.
 
 mod color;
 mod config;
 mod style;
+mod terminal;
 
 #[cfg(test)]
 mod tests;
 
-pub use config::{ColorMode, ColorizeConfig, RenderTarget};
+pub use config::{ColorDepthMode, ColorMode, ColorizeConfig, RenderTarget};
 pub use style::{Colorize, StyledText};
+pub use terminal::{ColorLevel, TerminalCapabilities};

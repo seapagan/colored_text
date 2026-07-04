@@ -1,7 +1,8 @@
 use std::fmt::{self, Display};
 
 use crate::color::{hex_to_rgb, hsl_to_rgb, ColorSpec, NamedColor};
-use crate::config::{should_colorize, should_colorize_for, RenderTarget};
+use crate::config::{color_level, color_level_for, RenderTarget};
+use crate::terminal::ColorLevel;
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 struct StyleFlags {
@@ -84,16 +85,24 @@ impl StyledText {
         self
     }
 
-    fn active_codes(&self) -> Vec<String> {
+    fn active_codes(&self, level: ColorLevel) -> Vec<String> {
+        if level == ColorLevel::NoColor {
+            return Vec::new();
+        }
+
         let mut codes = self.raw_codes.clone();
         codes.extend(self.styles.sgr_codes());
 
         if let Some(foreground) = &self.foreground {
-            codes.push(foreground.foreground_code());
+            if let Some(code) = foreground.foreground_code(level) {
+                codes.push(code);
+            }
         }
 
         if let Some(background) = &self.background {
-            codes.push(background.background_code());
+            if let Some(code) = background.background_code(level) {
+                codes.push(code);
+            }
         }
 
         codes
@@ -335,12 +344,12 @@ impl StyledText {
     /// destination instead of the default stdout-based behavior used by
     /// [`Display`].
     pub fn render(&self, target: RenderTarget) -> String {
-        self.render_with_color_policy(should_colorize_for(target))
+        self.render_with_color_level(color_level_for(target))
     }
 
-    fn render_with_color_policy(&self, colorize: bool) -> String {
-        let codes = self.active_codes();
-        if !colorize || codes.is_empty() {
+    fn render_with_color_level(&self, level: ColorLevel) -> String {
+        let codes = self.active_codes(level);
+        if codes.is_empty() {
             return self.text.clone();
         }
 
@@ -350,7 +359,7 @@ impl StyledText {
 
 impl Display for StyledText {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.render_with_color_policy(should_colorize()))
+        f.write_str(&self.render_with_color_level(color_level()))
     }
 }
 

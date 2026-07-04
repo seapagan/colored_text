@@ -1,4 +1,4 @@
-use colored_text::{ColorMode, Colorize, ColorizeConfig};
+use colored_text::{ColorDepthMode, ColorMode, Colorize, ColorizeConfig, RenderTarget};
 
 fn main() {
     // Basic colors
@@ -87,8 +87,14 @@ fn main() {
 
     // Runtime color modes
     println!("\nRuntime color modes:");
+    let caps = ColorizeConfig::terminal_capabilities(RenderTarget::Stdout);
+    println!("stdout color level: {:?}", caps.color_level);
+
     ColorizeConfig::set_color_mode(ColorMode::Always);
     println!("{}", "Forced color".red().bold());
+    ColorizeConfig::set_color_depth_mode(ColorDepthMode::Ansi256);
+    println!("{}", "Forced ANSI 256 RGB fallback".rgb(255, 128, 0));
+    ColorizeConfig::set_color_depth_mode(ColorDepthMode::Auto);
     ColorizeConfig::set_color_mode(ColorMode::Never);
     println!("{}", "Forced plain output".red().bold());
     ColorizeConfig::set_color_mode(ColorMode::Auto);

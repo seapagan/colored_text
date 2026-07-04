@@ -1,8 +1,12 @@
-use crate::color::{ColorSpec, NamedColor};
+use crate::color::{
+    ansi256_to_named_color, ansi256_to_rgb, rgb_to_ansi256, rgb_to_named_color, ColorSpec,
+    NamedColor,
+};
 use crate::config::{
     get_stderr_terminal_override_for_tests, get_terminal_override_for_tests,
-    set_stderr_terminal_override_for_tests, set_terminal_override_for_tests, should_colorize,
+    set_stderr_terminal_override_for_tests, set_terminal_override_for_tests,
 };
+use crate::terminal::{detect_color_level, tests::TestEnv};
 use crate::*;
 use rstest::*;
 use std::env;
@@ -11,26 +15,44 @@ use std::io::IsTerminal;
 use std::sync::{LazyLock, Mutex, MutexGuard};
 
 static TEST_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+const COLOR_ENV_KEYS: [&str; 10] = [
+    "NO_COLOR",
+    "FORCE_COLOR",
+    "CLICOLOR",
+    "CLICOLOR_FORCE",
+    "TERM",
+    "COLORTERM",
+    "CI",
+    "WT_SESSION",
+    "ConEmuANSI",
+    "ANSICON",
+];
 
 struct TestStateGuard {
     _lock: MutexGuard<'static, ()>,
     previous_mode: ColorMode,
-    previous_no_color: Option<OsString>,
+    previous_depth_mode: ColorDepthMode,
+    previous_env: Vec<(&'static str, Option<OsString>)>,
     previous_terminal_override: Option<bool>,
     previous_stderr_terminal_override: Option<bool>,
 }
 
 impl TestStateGuard {
     fn colors_enabled(mode: ColorMode) -> Self {
-        Self::with_state(mode, None, Some(false))
+        Self::with_depth(mode, ColorDepthMode::TrueColor, None, Some(false))
     }
 
     fn no_color(mode: ColorMode) -> Self {
-        Self::with_state(mode, Some("1"), Some(false))
+        Self::with_depth(mode, ColorDepthMode::Auto, Some("1"), Some(false))
     }
 
     fn auto_terminal(is_terminal: bool) -> Self {
-        Self::with_state(ColorMode::Auto, None, Some(is_terminal))
+        Self::with_depth(
+            ColorMode::Auto,
+            ColorDepthMode::Auto,
+            None,
+            Some(is_terminal),
+        )
     }
 
     fn with_state(
@@ -38,25 +60,46 @@ impl TestStateGuard {
         no_color: Option<&str>,
         terminal_override: Option<bool>,
     ) -> Self {
+        Self::with_depth(mode, ColorDepthMode::Auto, no_color, terminal_override)
+    }
+
+    fn with_depth(
+        mode: ColorMode,
+        depth_mode: ColorDepthMode,
+        no_color: Option<&str>,
+        terminal_override: Option<bool>,
+    ) -> Self {
         let guard = TEST_LOCK
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         let previous_mode = ColorizeConfig::color_mode();
-        let previous_no_color = env::var_os("NO_COLOR");
+        let previous_depth_mode = ColorizeConfig::color_depth_mode();
+        let previous_env = COLOR_ENV_KEYS
+            .into_iter()
+            .map(|key| (key, env::var_os(key)))
+            .collect();
         let previous_terminal_override = get_terminal_override_for_tests();
         let previous_stderr_terminal_override = get_stderr_terminal_override_for_tests();
+
+        for key in COLOR_ENV_KEYS {
+            env::remove_var(key);
+        }
 
         match no_color {
             Some(value) => env::set_var("NO_COLOR", value),
             None => env::remove_var("NO_COLOR"),
         }
+        env::set_var("TERM", "xterm-256color");
         ColorizeConfig::set_color_mode(mode);
+        ColorizeConfig::set_color_depth_mode(depth_mode);
         set_terminal_override_for_tests(terminal_override);
+        set_stderr_terminal_override_for_tests(None);
 
         Self {
             _lock: guard,
             previous_mode,
-            previous_no_color,
+            previous_depth_mode,
+            previous_env,
             previous_terminal_override,
             previous_stderr_terminal_override,
         }
@@ -66,11 +109,14 @@ impl TestStateGuard {
 impl Drop for TestStateGuard {
     fn drop(&mut self) {
         ColorizeConfig::set_color_mode(self.previous_mode);
+        ColorizeConfig::set_color_depth_mode(self.previous_depth_mode);
         set_terminal_override_for_tests(self.previous_terminal_override);
         set_stderr_terminal_override_for_tests(self.previous_stderr_terminal_override);
-        match self.previous_no_color.as_ref() {
-            Some(value) => env::set_var("NO_COLOR", value),
-            None => env::remove_var("NO_COLOR"),
+        for (key, value) in &self.previous_env {
+            match value {
+                Some(value) => env::set_var(key, value),
+                None => env::remove_var(key),
+            }
         }
     }
 }
@@ -458,7 +504,12 @@ fn test_color_mode_auto_respects_tty_detection() {
 #[test]
 fn test_color_mode_auto_uses_real_stdout_terminal_state_without_override() {
     let _guard = TestStateGuard::with_state(ColorMode::Auto, None, None);
-    assert_eq!(should_colorize(), std::io::stdout().is_terminal());
+    let expected = if std::io::stdout().is_terminal() {
+        ColorLevel::Ansi256
+    } else {
+        ColorLevel::NoColor
+    };
+    assert_eq!(ColorizeConfig::color_level(RenderTarget::Stdout), expected);
 }
 
 #[test]
@@ -547,6 +598,236 @@ fn test_no_color_disables_output_in_auto_and_always() {
     assert_eq!("test".ansi256(208).to_string(), "test");
 }
 
+#[rstest]
+#[case(
+    ColorMode::Never,
+    ColorDepthMode::Auto,
+    true,
+    TestEnv::default(),
+    ColorLevel::NoColor
+)]
+#[case(
+    ColorMode::Auto,
+    ColorDepthMode::NoColor,
+    true,
+    TestEnv::default(),
+    ColorLevel::NoColor
+)]
+#[case(ColorMode::Auto, ColorDepthMode::Auto, true, TestEnv::default().with("FORCE_COLOR", "0"), ColorLevel::NoColor)]
+#[case(ColorMode::Auto, ColorDepthMode::Auto, true, TestEnv::default().with("FORCE_COLOR", "false"), ColorLevel::NoColor)]
+#[case(ColorMode::Auto, ColorDepthMode::Ansi16, true, TestEnv::default().with("NO_COLOR", "1"), ColorLevel::Ansi16)]
+#[case(ColorMode::Auto, ColorDepthMode::Ansi256, true, TestEnv::default().with("NO_COLOR", "1"), ColorLevel::Ansi256)]
+#[case(ColorMode::Auto, ColorDepthMode::TrueColor, true, TestEnv::default().with("NO_COLOR", "1"), ColorLevel::TrueColor)]
+#[case(ColorMode::Never, ColorDepthMode::TrueColor, true, TestEnv::default().with("FORCE_COLOR", "3"), ColorLevel::NoColor)]
+fn test_color_level_precedence(
+    #[case] color_mode: ColorMode,
+    #[case] depth_mode: ColorDepthMode,
+    #[case] is_terminal: bool,
+    #[case] env: TestEnv,
+    #[case] expected: ColorLevel,
+) {
+    assert_eq!(
+        detect_color_level(is_terminal, color_mode, depth_mode, &env),
+        expected
+    );
+}
+
+#[rstest]
+#[case("1", ColorLevel::Ansi16)]
+#[case("2", ColorLevel::Ansi256)]
+#[case("3", ColorLevel::TrueColor)]
+#[case("truecolor", ColorLevel::TrueColor)]
+#[case("ansi256", ColorLevel::Ansi256)]
+#[case("ansi16", ColorLevel::Ansi16)]
+#[case("on", ColorLevel::Ansi16)]
+fn test_force_color_values(#[case] value: &str, #[case] expected: ColorLevel) {
+    let env = TestEnv::default().with("FORCE_COLOR", value);
+    assert_eq!(
+        detect_color_level(false, ColorMode::Auto, ColorDepthMode::Auto, &env),
+        expected
+    );
+}
+
+#[rstest]
+#[case(TestEnv::default().with("NO_COLOR", "1"), true, ColorLevel::NoColor)]
+#[case(TestEnv::default().with("CLICOLOR", "0"), true, ColorLevel::NoColor)]
+#[case(TestEnv::default().with("CLICOLOR_FORCE", "1"), false, ColorLevel::Ansi16)]
+#[case(TestEnv::default(), false, ColorLevel::NoColor)]
+#[case(TestEnv::default().with("TERM", "dumb"), true, ColorLevel::NoColor)]
+#[case(TestEnv::default().with("COLORTERM", "truecolor"), true, ColorLevel::TrueColor)]
+#[case(TestEnv::default().with("COLORTERM", "24bit"), true, ColorLevel::TrueColor)]
+#[case(TestEnv::default().with("TERM", "xterm-256color"), true, ColorLevel::Ansi256)]
+#[case(TestEnv::default().with("TERM", "xterm"), true, ColorLevel::Ansi16)]
+#[case(TestEnv::default().with("WT_SESSION", "abc"), true, ColorLevel::TrueColor)]
+#[case(TestEnv::default().with("ConEmuANSI", "ON"), true, ColorLevel::Ansi16)]
+#[case(TestEnv::default().with("ANSICON", "1"), true, ColorLevel::Ansi16)]
+#[case(TestEnv::default().with("CI", "1"), true, ColorLevel::Ansi16)]
+fn test_auto_color_level_detection(
+    #[case] env: TestEnv,
+    #[case] is_terminal: bool,
+    #[case] expected: ColorLevel,
+) {
+    assert_eq!(
+        detect_color_level(is_terminal, ColorMode::Auto, ColorDepthMode::Auto, &env),
+        expected
+    );
+}
+
+#[test]
+fn test_clicolor_force_can_still_detect_higher_depth() {
+    let env = TestEnv::default()
+        .with("CLICOLOR_FORCE", "1")
+        .with("COLORTERM", "truecolor");
+
+    assert_eq!(
+        detect_color_level(false, ColorMode::Auto, ColorDepthMode::Auto, &env),
+        ColorLevel::TrueColor
+    );
+}
+
+#[test]
+fn test_color_depth_mode_accessors() {
+    let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+    ColorizeConfig::set_color_depth_mode(ColorDepthMode::Ansi256);
+    assert_eq!(ColorizeConfig::color_depth_mode(), ColorDepthMode::Ansi256);
+}
+
+#[test]
+fn test_terminal_capabilities_for_known_target() {
+    let _guard =
+        TestStateGuard::with_depth(ColorMode::Auto, ColorDepthMode::Auto, None, Some(false));
+    let target = RenderTarget::Capabilities(TerminalCapabilities {
+        is_terminal: false,
+        color_level: ColorLevel::Ansi256,
+    });
+
+    assert_eq!(ColorizeConfig::color_level(target), ColorLevel::Ansi256);
+    assert_eq!(
+        "test".rgb(255, 128, 0).render(target),
+        "\x1b[38;5;208mtest\x1b[0m"
+    );
+}
+
+#[test]
+fn test_terminal_capabilities_respect_color_mode_never() {
+    let _guard = TestStateGuard::colors_enabled(ColorMode::Never);
+    let target = RenderTarget::Capabilities(TerminalCapabilities {
+        is_terminal: true,
+        color_level: ColorLevel::TrueColor,
+    });
+
+    assert_eq!(ColorizeConfig::color_level(target), ColorLevel::NoColor);
+    assert_eq!("test".red().render(target), "test");
+}
+
+#[test]
+fn test_terminal_true_uses_env_depth_detection() {
+    let _guard =
+        TestStateGuard::with_depth(ColorMode::Auto, ColorDepthMode::Auto, None, Some(false));
+    env::set_var("COLORTERM", "truecolor");
+
+    assert_eq!(
+        ColorizeConfig::color_level(RenderTarget::Terminal(true)),
+        ColorLevel::TrueColor
+    );
+}
+
+#[rstest]
+#[case(ColorLevel::TrueColor, "\x1b[38;2;255;128;0mtest\x1b[0m")]
+#[case(ColorLevel::Ansi256, "\x1b[38;5;208mtest\x1b[0m")]
+#[case(ColorLevel::Ansi16, "\x1b[33mtest\x1b[0m")]
+#[case(ColorLevel::NoColor, "test")]
+fn test_rgb_degrades_by_color_level(#[case] level: ColorLevel, #[case] expected: &str) {
+    let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+    let target = RenderTarget::Capabilities(TerminalCapabilities {
+        is_terminal: true,
+        color_level: level,
+    });
+
+    assert_eq!("test".rgb(255, 128, 0).render(target), expected);
+}
+
+#[rstest]
+#[case(ColorLevel::TrueColor, "\x1b[38;5;208mtest\x1b[0m")]
+#[case(ColorLevel::Ansi256, "\x1b[38;5;208mtest\x1b[0m")]
+#[case(ColorLevel::Ansi16, "\x1b[93mtest\x1b[0m")]
+#[case(ColorLevel::NoColor, "test")]
+fn test_ansi256_degrades_by_color_level(#[case] level: ColorLevel, #[case] expected: &str) {
+    let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+    let target = RenderTarget::Capabilities(TerminalCapabilities {
+        is_terminal: true,
+        color_level: level,
+    });
+
+    assert_eq!("test".ansi256(208).render(target), expected);
+}
+
+#[test]
+fn test_named_colors_remain_named_for_color_levels() {
+    let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+
+    for level in [
+        ColorLevel::Ansi16,
+        ColorLevel::Ansi256,
+        ColorLevel::TrueColor,
+    ] {
+        let target = RenderTarget::Capabilities(TerminalCapabilities {
+            is_terminal: true,
+            color_level: level,
+        });
+        assert_eq!("test".red().render(target), "\x1b[31mtest\x1b[0m");
+    }
+}
+
+#[test]
+fn test_no_color_suppresses_styles_and_raw_codes() {
+    let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+    let target = RenderTarget::Capabilities(TerminalCapabilities {
+        is_terminal: false,
+        color_level: ColorLevel::NoColor,
+    });
+
+    assert_eq!("test".bold().red().colorize("4").render(target), "test");
+}
+
+#[rstest]
+#[case(0, (0, 0, 0))]
+#[case(15, (255, 255, 255))]
+#[case(16, (0, 0, 0))]
+#[case(21, (0, 0, 255))]
+#[case(208, (255, 135, 0))]
+#[case(232, (8, 8, 8))]
+#[case(255, (238, 238, 238))]
+fn test_ansi256_palette_rgb_values(#[case] index: u8, #[case] expected: (u8, u8, u8)) {
+    assert_eq!(ansi256_to_rgb(index), expected);
+}
+
+#[rstest]
+#[case((255, 128, 0), 208)]
+#[case((0, 0, 255), 12)]
+#[case((128, 128, 128), 8)]
+#[case((238, 238, 238), 255)]
+fn test_rgb_to_ansi256_known_values(#[case] rgb: (u8, u8, u8), #[case] expected: u8) {
+    assert_eq!(rgb_to_ansi256(rgb.0, rgb.1, rgb.2), expected);
+}
+
+#[rstest]
+#[case((255, 0, 0), NamedColor::BrightRed)]
+#[case((0, 0, 128), NamedColor::Blue)]
+#[case((255, 255, 255), NamedColor::BrightWhite)]
+#[case((255, 128, 0), NamedColor::Yellow)]
+fn test_rgb_to_named_color_known_values(#[case] rgb: (u8, u8, u8), #[case] expected: NamedColor) {
+    assert_eq!(rgb_to_named_color(rgb.0, rgb.1, rgb.2), expected);
+}
+
+#[rstest]
+#[case(12, NamedColor::BrightBlue)]
+#[case(208, NamedColor::BrightYellow)]
+#[case(236, NamedColor::Black)]
+fn test_ansi256_to_named_color_known_values(#[case] index: u8, #[case] expected: NamedColor) {
+    assert_eq!(ansi256_to_named_color(index), expected);
+}
+
 #[test]
 #[allow(deprecated)]
 fn test_set_terminal_check_compatibility_mapping() {
@@ -577,13 +858,22 @@ fn test_raw_colorize_codes_still_render() {
 #[case(NamedColor::BrightCyan, "106")]
 #[case(NamedColor::BrightWhite, "107")]
 fn test_bright_background_color_codes(#[case] color: NamedColor, #[case] expected: &str) {
-    assert_eq!(ColorSpec::Named(color).background_code(), expected);
+    assert_eq!(
+        ColorSpec::Named(color).background_code(ColorLevel::Ansi16),
+        Some(expected.to_string())
+    );
 }
 
 #[test]
 fn test_ansi256_color_codes() {
-    assert_eq!(ColorSpec::Ansi256(208).foreground_code(), "38;5;208");
-    assert_eq!(ColorSpec::Ansi256(236).background_code(), "48;5;236");
+    assert_eq!(
+        ColorSpec::Ansi256(208).foreground_code(ColorLevel::Ansi256),
+        Some("38;5;208".to_string())
+    );
+    assert_eq!(
+        ColorSpec::Ansi256(236).background_code(ColorLevel::Ansi256),
+        Some("48;5;236".to_string())
+    );
 }
 
 #[test]
