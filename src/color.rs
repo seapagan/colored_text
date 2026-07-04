@@ -21,6 +21,25 @@ const ANSI16_RGB: [(u8, u8, u8); 16] = [
     (255, 255, 255),
 ];
 
+const NAMED_COLORS: [NamedColor; 16] = [
+    NamedColor::Black,
+    NamedColor::Red,
+    NamedColor::Green,
+    NamedColor::Yellow,
+    NamedColor::Blue,
+    NamedColor::Magenta,
+    NamedColor::Cyan,
+    NamedColor::White,
+    NamedColor::BrightBlack,
+    NamedColor::BrightRed,
+    NamedColor::BrightGreen,
+    NamedColor::BrightYellow,
+    NamedColor::BrightBlue,
+    NamedColor::BrightMagenta,
+    NamedColor::BrightCyan,
+    NamedColor::BrightWhite,
+];
+
 /// Convert HSL color values to RGB.
 ///
 /// - `h`: Hue in degrees
@@ -94,45 +113,32 @@ pub(crate) enum NamedColor {
 }
 
 impl NamedColor {
-    pub(crate) fn foreground_code(self) -> &'static str {
-        match self {
-            Self::Black => "30",
-            Self::Red => "31",
-            Self::Green => "32",
-            Self::Yellow => "33",
-            Self::Blue => "34",
-            Self::Magenta => "35",
-            Self::Cyan => "36",
-            Self::White => "37",
-            Self::BrightBlack => "90",
-            Self::BrightRed => "91",
-            Self::BrightGreen => "92",
-            Self::BrightYellow => "93",
-            Self::BrightBlue => "94",
-            Self::BrightMagenta => "95",
-            Self::BrightCyan => "96",
-            Self::BrightWhite => "97",
-        }
+    pub(crate) fn foreground_code(self) -> String {
+        self.foreground_code_value().to_string()
     }
 
-    pub(crate) fn background_code(self) -> &'static str {
+    pub(crate) fn background_code(self) -> String {
+        (self.foreground_code_value() + 10).to_string()
+    }
+
+    fn foreground_code_value(self) -> u8 {
         match self {
-            Self::Black => "40",
-            Self::Red => "41",
-            Self::Green => "42",
-            Self::Yellow => "43",
-            Self::Blue => "44",
-            Self::Magenta => "45",
-            Self::Cyan => "46",
-            Self::White => "47",
-            Self::BrightBlack => "100",
-            Self::BrightRed => "101",
-            Self::BrightGreen => "102",
-            Self::BrightYellow => "103",
-            Self::BrightBlue => "104",
-            Self::BrightMagenta => "105",
-            Self::BrightCyan => "106",
-            Self::BrightWhite => "107",
+            Self::Black => 30,
+            Self::Red => 31,
+            Self::Green => 32,
+            Self::Yellow => 33,
+            Self::Blue => 34,
+            Self::Magenta => 35,
+            Self::Cyan => 36,
+            Self::White => 37,
+            Self::BrightBlack => 90,
+            Self::BrightRed => 91,
+            Self::BrightGreen => 92,
+            Self::BrightYellow => 93,
+            Self::BrightBlue => 94,
+            Self::BrightMagenta => 95,
+            Self::BrightCyan => 96,
+            Self::BrightWhite => 97,
         }
     }
 }
@@ -156,17 +162,13 @@ impl ColorSpec {
     fn code(&self, level: ColorLevel, position: ColorPosition) -> Option<String> {
         match (level, self) {
             (ColorLevel::NoColor, _) => None,
-            (_, Self::Named(color)) => Some(position.named_code(*color).to_string()),
-            (ColorLevel::Ansi16, Self::Ansi256(index)) => Some(
-                position
-                    .named_code(ansi256_to_named_color(*index))
-                    .to_string(),
-            ),
-            (ColorLevel::Ansi16, Self::Rgb(r, g, b)) => Some(
-                position
-                    .named_code(rgb_to_named_color(*r, *g, *b))
-                    .to_string(),
-            ),
+            (_, Self::Named(color)) => Some(position.named_code(*color)),
+            (ColorLevel::Ansi16, Self::Ansi256(index)) => {
+                Some(position.named_code(ansi256_to_named_color(*index)))
+            }
+            (ColorLevel::Ansi16, Self::Rgb(r, g, b)) => {
+                Some(position.named_code(rgb_to_named_color(*r, *g, *b)))
+            }
             (ColorLevel::Ansi256 | ColorLevel::TrueColor, Self::Ansi256(index)) => {
                 Some(format!("{};5;{index}", position.extended_prefix()))
             }
@@ -193,7 +195,7 @@ enum ColorPosition {
 }
 
 impl ColorPosition {
-    fn named_code(self, color: NamedColor) -> &'static str {
+    fn named_code(self, color: NamedColor) -> String {
         match self {
             Self::Foreground => color.foreground_code(),
             Self::Background => color.background_code(),
@@ -210,16 +212,10 @@ impl ColorPosition {
 
 pub(crate) fn rgb_to_ansi256(r: u8, g: u8, b: u8) -> u8 {
     let target = (r, g, b);
-    let mut best_index = 0;
-    let mut best_distance = u32::MAX;
-
-    for index in 0..=15 {
-        let distance = distance_squared(target, ansi256_to_rgb(index));
-        if distance < best_distance {
-            best_index = index;
-            best_distance = distance;
-        }
-    }
+    let mut best_index = nearest_by_distance(0..=15, |index| {
+        distance_squared(target, ansi256_to_rgb(index))
+    });
+    let mut best_distance = distance_squared(target, ansi256_to_rgb(best_index));
 
     let cube_index = rgb_to_ansi256_cube(r, g, b);
     let cube_distance = distance_squared(target, ansi256_to_rgb(cube_index));
@@ -266,18 +262,10 @@ fn rgb_to_ansi256_cube(r: u8, g: u8, b: u8) -> u8 {
 }
 
 fn nearest_ansi256_cube_component(value: u8) -> u8 {
-    let mut best_index = 0;
-    let mut best_distance = u32::MAX;
-
-    for (index, candidate) in ANSI256_STEPS.iter().copied().enumerate() {
-        let distance = component_distance_squared(value, candidate);
-        if distance < best_distance {
-            best_index = index as u8;
-            best_distance = distance;
-        }
-    }
-
-    best_index
+    let (index, _) = nearest_by_distance(ANSI256_STEPS.iter().copied().enumerate(), |candidate| {
+        component_distance_squared(value, candidate.1)
+    });
+    index as u8
 }
 
 fn rgb_to_ansi256_gray(r: u8, g: u8, b: u8) -> u8 {
@@ -295,19 +283,9 @@ fn rgb_to_ansi256_gray(r: u8, g: u8, b: u8) -> u8 {
 
 pub(crate) fn rgb_to_named_color(r: u8, g: u8, b: u8) -> NamedColor {
     let target = (r, g, b);
-    let mut best = NamedColor::Black;
-    let mut best_distance = u32::MAX;
-
-    for (color, rgb) in named_color_candidates() {
-        let distance = distance_squared(target, rgb);
-        // Strict comparison keeps ANSI palette order as the deterministic
-        // tie-breaker.
-        if distance < best_distance {
-            best = color;
-            best_distance = distance;
-        }
-    }
-
+    let (best, _) = nearest_by_distance(named_color_candidates(), |candidate| {
+        distance_squared(target, candidate.1)
+    });
     best
 }
 
@@ -316,25 +294,31 @@ pub(crate) fn ansi256_to_named_color(index: u8) -> NamedColor {
     rgb_to_named_color(r, g, b)
 }
 
-fn named_color_candidates() -> [(NamedColor, (u8, u8, u8)); 16] {
-    [
-        (NamedColor::Black, ANSI16_RGB[0]),
-        (NamedColor::Red, ANSI16_RGB[1]),
-        (NamedColor::Green, ANSI16_RGB[2]),
-        (NamedColor::Yellow, ANSI16_RGB[3]),
-        (NamedColor::Blue, ANSI16_RGB[4]),
-        (NamedColor::Magenta, ANSI16_RGB[5]),
-        (NamedColor::Cyan, ANSI16_RGB[6]),
-        (NamedColor::White, ANSI16_RGB[7]),
-        (NamedColor::BrightBlack, ANSI16_RGB[8]),
-        (NamedColor::BrightRed, ANSI16_RGB[9]),
-        (NamedColor::BrightGreen, ANSI16_RGB[10]),
-        (NamedColor::BrightYellow, ANSI16_RGB[11]),
-        (NamedColor::BrightBlue, ANSI16_RGB[12]),
-        (NamedColor::BrightMagenta, ANSI16_RGB[13]),
-        (NamedColor::BrightCyan, ANSI16_RGB[14]),
-        (NamedColor::BrightWhite, ANSI16_RGB[15]),
-    ]
+fn named_color_candidates() -> impl Iterator<Item = (NamedColor, (u8, u8, u8))> {
+    NAMED_COLORS.into_iter().zip(ANSI16_RGB)
+}
+
+fn nearest_by_distance<T>(candidates: impl IntoIterator<Item = T>, distance: impl Fn(T) -> u32) -> T
+where
+    T: Copy,
+{
+    let mut candidates = candidates.into_iter();
+    let mut best = candidates
+        .next()
+        .expect("nearest_by_distance requires at least one candidate");
+    let mut best_distance = distance(best);
+
+    for candidate in candidates {
+        let candidate_distance = distance(candidate);
+        // Strict comparison keeps candidate order as the deterministic
+        // tie-breaker.
+        if candidate_distance < best_distance {
+            best = candidate;
+            best_distance = candidate_distance;
+        }
+    }
+
+    best
 }
 
 fn distance_squared(a: (u8, u8, u8), b: (u8, u8, u8)) -> u32 {
