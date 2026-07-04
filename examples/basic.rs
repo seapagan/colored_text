@@ -92,12 +92,19 @@ fn main() {
     // Runtime color modes
     println!("\nRuntime color modes:");
     let caps = ColorizeConfig::terminal_capabilities(RenderTarget::Stdout);
+    println!("stdout is terminal: {}", caps.is_terminal);
     println!("stdout color level: {:?}", caps.color_level);
 
     ColorizeConfig::set_color_mode(ColorMode::Always);
     println!("{}", "Forced color".red().bold());
+    ColorizeConfig::set_color_depth_mode(ColorDepthMode::TrueColor);
+    println!("{}", "RGB as truecolor".rgb(255, 128, 0));
     ColorizeConfig::set_color_depth_mode(ColorDepthMode::Ansi256);
-    println!("{}", "Forced ANSI 256 RGB fallback".rgb(255, 128, 0));
+    println!("{}", "RGB degraded to ANSI 256".rgb(255, 128, 0));
+    ColorizeConfig::set_color_depth_mode(ColorDepthMode::Ansi16);
+    println!("{}", "RGB degraded to ANSI 16".rgb(255, 128, 0));
+    ColorizeConfig::set_color_depth_mode(ColorDepthMode::NoColor);
+    println!("{}", "RGB rendered plain".rgb(255, 128, 0));
     ColorizeConfig::set_color_depth_mode(ColorDepthMode::Auto);
     ColorizeConfig::set_color_mode(ColorMode::Never);
     println!("{}", "Forced plain output".red().bold());
