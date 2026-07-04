@@ -195,13 +195,25 @@ pub(crate) fn rgb_to_ansi256(r: u8, g: u8, b: u8) -> u8 {
     let mut best_index = 0;
     let mut best_distance = u32::MAX;
 
-    for index in 0..=255 {
-        let candidate = ansi256_to_rgb(index);
-        let distance = distance_squared(target, candidate);
+    for index in 0..=15 {
+        let distance = distance_squared(target, ansi256_to_rgb(index));
         if distance < best_distance {
             best_index = index;
             best_distance = distance;
         }
+    }
+
+    let cube_index = rgb_to_ansi256_cube(r, g, b);
+    let cube_distance = distance_squared(target, ansi256_to_rgb(cube_index));
+    if cube_distance < best_distance {
+        best_index = cube_index;
+        best_distance = cube_distance;
+    }
+
+    let gray_index = rgb_to_ansi256_gray(r, g, b);
+    let gray_distance = distance_squared(target, ansi256_to_rgb(gray_index));
+    if gray_distance < best_distance {
+        best_index = gray_index;
     }
 
     best_index
@@ -226,6 +238,41 @@ pub(crate) fn ansi256_to_rgb(index: u8) -> (u8, u8, u8) {
             (value, value, value)
         }
     }
+}
+
+fn rgb_to_ansi256_cube(r: u8, g: u8, b: u8) -> u8 {
+    let red = nearest_ansi256_cube_component(r);
+    let green = nearest_ansi256_cube_component(g);
+    let blue = nearest_ansi256_cube_component(b);
+    16 + 36 * red + 6 * green + blue
+}
+
+fn nearest_ansi256_cube_component(value: u8) -> u8 {
+    let mut best_index = 0;
+    let mut best_distance = u32::MAX;
+
+    for (index, candidate) in ANSI256_STEPS.iter().copied().enumerate() {
+        let distance = component_distance_squared(value, candidate);
+        if distance < best_distance {
+            best_index = index as u8;
+            best_distance = distance;
+        }
+    }
+
+    best_index
+}
+
+fn rgb_to_ansi256_gray(r: u8, g: u8, b: u8) -> u8 {
+    let average = (u16::from(r) + u16::from(g) + u16::from(b)) / 3;
+    let ramp_index = if average <= 8 {
+        0
+    } else if average >= 238 {
+        23
+    } else {
+        ((average - 8) + 5) / 10
+    };
+
+    232 + ramp_index as u8
 }
 
 pub(crate) fn rgb_to_named_color(r: u8, g: u8, b: u8) -> NamedColor {
@@ -271,8 +318,12 @@ fn named_color_candidates() -> [(NamedColor, (u8, u8, u8)); 16] {
 }
 
 fn distance_squared(a: (u8, u8, u8), b: (u8, u8, u8)) -> u32 {
-    let dr = i32::from(a.0) - i32::from(b.0);
-    let dg = i32::from(a.1) - i32::from(b.1);
-    let db = i32::from(a.2) - i32::from(b.2);
-    (dr * dr + dg * dg + db * db) as u32
+    component_distance_squared(a.0, b.0)
+        + component_distance_squared(a.1, b.1)
+        + component_distance_squared(a.2, b.2)
+}
+
+fn component_distance_squared(a: u8, b: u8) -> u32 {
+    let distance = i32::from(a) - i32::from(b);
+    distance.unsigned_abs().pow(2)
 }
