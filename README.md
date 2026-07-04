@@ -313,6 +313,12 @@ your terminal emulator and its configuration:
 
 Check out the [examples](examples/) directory for more usage examples.
 
+Right now we only have one example `basic.rs`. You can run this using:
+
+```bash
+cargo run --example basic
+```
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
