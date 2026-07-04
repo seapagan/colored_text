@@ -37,6 +37,13 @@ Add this to your `Cargo.toml`:
 colored_text = "0.4.1"
 ```
 
+## Compatibility with 0.4.1
+
+Since `0.4.1`, `Colorize` has gained required trait methods for bright
+foreground and bright background colors. Most users rely on the blanket
+`impl<T: Display> Colorize for T` and are unaffected. Downstream crates with
+manual `impl Colorize for ...` blocks must implement the new methods.
+
 ## Usage
 
 ```rust

@@ -120,6 +120,14 @@
 //! println!("stdout color level: {:?}", caps.color_level);
 //! ```
 //!
+//! # Compatibility with 0.4.1
+//!
+//! Since `0.4.1`, [`Colorize`] has gained required trait methods for bright
+//! foreground and bright background colors. Most users rely on the blanket
+//! `impl<T: std::fmt::Display> Colorize for T` and are unaffected. Downstream
+//! crates with manual `impl Colorize for ...` blocks must implement the new
+//! methods.
+//!
 //! # Note
 //!
 //! Colors and styles are implemented using ANSI escape codes, which are
