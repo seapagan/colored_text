@@ -3,6 +3,9 @@
 mutants.out*
 
 # AI stuff
-.codex
+.codex/
+.claude/
+.agents/
 AGENTS.md
 CLAUDE.md
+.codegraph
