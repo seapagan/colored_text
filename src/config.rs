@@ -29,6 +29,11 @@ pub enum RenderTarget {
     /// Use an explicit terminal capability for a custom destination.
     Terminal(bool),
     /// Use exact, caller-provided capabilities for a custom destination.
+    ///
+    /// Environment capability overrides such as `FORCE_COLOR` and positive
+    /// [`ColorDepthMode`] settings do not raise or lower this supplied level.
+    /// The hard disables still apply: `NO_COLOR`, [`ColorMode::Never`], and
+    /// [`ColorDepthMode::NoColor`].
     Capabilities(TerminalCapabilities),
 }
 
@@ -96,8 +101,12 @@ impl ColorizeConfig {
     /// Set the runtime color depth override for the current thread.
     ///
     /// In [`ColorDepthMode::Auto`], color depth is detected from the target and
-    /// environment. Explicit modes force a level, except [`ColorMode::Never`]
-    /// still disables all ANSI output.
+    /// environment. For normal targets, explicit positive modes force a level
+    /// unless `FORCE_COLOR` requests a different level.
+    ///
+    /// `NO_COLOR`, [`ColorMode::Never`], and [`ColorDepthMode::NoColor`] are
+    /// hard disables. For [`RenderTarget::Capabilities`], positive explicit
+    /// modes do not alter the caller-supplied capability level.
     pub fn set_color_depth_mode(mode: ColorDepthMode) {
         CONFIG.with(|config| config.borrow_mut().color_depth_mode = mode);
     }

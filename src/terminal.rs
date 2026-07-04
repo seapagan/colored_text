@@ -1,6 +1,11 @@
 use crate::config::{ColorDepthMode, ColorMode};
 
 /// Resolved color support level for an output target.
+///
+/// Named colors and text styles render at [`ColorLevel::Ansi16`] and above.
+/// ANSI 256-color values render directly at [`ColorLevel::Ansi256`] and
+/// [`ColorLevel::TrueColor`], while RGB, HSL, and hex colors degrade to the
+/// nearest supported color level.
 #[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 pub enum ColorLevel {
     /// Do not emit ANSI SGR sequences.
@@ -14,6 +19,11 @@ pub enum ColorLevel {
 }
 
 /// Resolved terminal capability information for an output target.
+///
+/// Values returned by [`crate::ColorizeConfig::terminal_capabilities`] are
+/// detected heuristically from the target and environment. Values supplied via
+/// [`crate::RenderTarget::Capabilities`] are treated as exact caller knowledge,
+/// subject only to hard color-disabling policy.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct TerminalCapabilities {
     /// Whether the target is known to be a terminal.

@@ -86,9 +86,16 @@
 //! - [`ColorMode::Always`] forces styling on even when stdout is not a terminal
 //! - [`ColorMode::Never`] disables styling completely
 //!
-//! The `NO_COLOR` environment variable disables styling in `Auto` and
-//! `Always`, unless overridden by `FORCE_COLOR` or an explicit
-//! [`ColorDepthMode`]. [`ColorMode::Never`] always disables ANSI output.
+//! The `NO_COLOR` environment variable disables styling in all modes, including
+//! when `FORCE_COLOR` or an explicit [`ColorDepthMode`] is set.
+//! [`ColorMode::Never`] also always disables color output.
+//!
+//! For normal targets such as [`RenderTarget::Stdout`],
+//! [`RenderTarget::Stderr`], and [`RenderTarget::Terminal`], color depth is
+//! resolved from environment variables and the current configuration. For
+//! [`RenderTarget::Capabilities`], the supplied [`TerminalCapabilities`] are
+//! used as-is except for the hard disables: `NO_COLOR`, [`ColorMode::Never`],
+//! and [`ColorDepthMode::NoColor`].
 //!
 //! ```rust
 //! use colored_text::{ColorDepthMode, ColorMode, Colorize, ColorizeConfig};
