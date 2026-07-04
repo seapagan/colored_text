@@ -38,10 +38,6 @@ pub(crate) trait EnvProvider {
     fn is_set(&self, key: &str) -> bool {
         self.get(key).is_some()
     }
-
-    fn is_non_empty(&self, key: &str) -> bool {
-        self.get(key).is_some_and(|value| !value.is_empty())
-    }
 }
 
 pub(crate) struct ProcessEnv;
@@ -49,6 +45,10 @@ pub(crate) struct ProcessEnv;
 impl EnvProvider for ProcessEnv {
     fn get(&self, key: &str) -> Option<String> {
         std::env::var(key).ok()
+    }
+
+    fn is_set(&self, key: &str) -> bool {
+        std::env::var_os(key).is_some()
     }
 }
 
@@ -68,16 +68,8 @@ pub(crate) fn color_level_for_capabilities(
     color_mode: ColorMode,
     depth_mode: ColorDepthMode,
 ) -> ColorLevel {
-    if ProcessEnv.is_non_empty("NO_COLOR") {
-        return ColorLevel::NoColor;
-    }
-
-    if color_mode == ColorMode::Never {
-        return ColorLevel::NoColor;
-    }
-
-    if depth_mode == ColorDepthMode::NoColor {
-        return ColorLevel::NoColor;
+    if let Some(level) = hard_disable_level(color_mode, depth_mode, &ProcessEnv) {
+        return level;
     }
 
     capabilities.color_level
@@ -89,17 +81,13 @@ pub(crate) fn detect_color_level(
     depth_mode: ColorDepthMode,
     env: &impl EnvProvider,
 ) -> ColorLevel {
-    if env.is_non_empty("NO_COLOR") {
-        return ColorLevel::NoColor;
-    }
-
-    if color_mode == ColorMode::Never {
-        return ColorLevel::NoColor;
+    if let Some(level) = hard_disable_level(color_mode, depth_mode, env) {
+        return level;
     }
 
     let explicit_depth = match depth_mode {
         ColorDepthMode::Auto => None,
-        ColorDepthMode::NoColor => return ColorLevel::NoColor,
+        ColorDepthMode::NoColor => unreachable!("handled by hard_disable_level"),
         ColorDepthMode::Ansi16 => Some(ColorLevel::Ansi16),
         ColorDepthMode::Ansi256 => Some(ColorLevel::Ansi256),
         ColorDepthMode::TrueColor => Some(ColorLevel::TrueColor),
@@ -117,7 +105,7 @@ pub(crate) fn detect_color_level(
         .get("CLICOLOR_FORCE")
         .is_some_and(|value| !value.is_empty() && value != "0");
 
-    if env.get("CLICOLOR").as_deref() == Some("0") {
+    if env.get("CLICOLOR").as_deref() == Some("0") && !clicolor_forced {
         return ColorLevel::NoColor;
     }
 
@@ -125,16 +113,38 @@ pub(crate) fn detect_color_level(
         return ColorLevel::NoColor;
     }
 
-    let detected = detect_env_color_level(env);
+    if let Some(detected) = detect_env_color_level(env) {
+        if clicolor_forced {
+            return detected.max(ColorLevel::Ansi16);
+        }
+
+        return detected;
+    }
+
     if clicolor_forced {
-        return detected.max(ColorLevel::Ansi16);
+        return ColorLevel::Ansi16;
     }
 
-    if color_mode == ColorMode::Always {
-        return detected.max(ColorLevel::Ansi16);
+    if color_mode == ColorMode::Always || is_terminal {
+        return ColorLevel::TrueColor;
     }
 
-    detected
+    ColorLevel::NoColor
+}
+
+fn hard_disable_level(
+    color_mode: ColorMode,
+    depth_mode: ColorDepthMode,
+    env: &impl EnvProvider,
+) -> Option<ColorLevel> {
+    if env.is_set("NO_COLOR")
+        || color_mode == ColorMode::Never
+        || depth_mode == ColorDepthMode::NoColor
+    {
+        Some(ColorLevel::NoColor)
+    } else {
+        None
+    }
 }
 
 fn force_color_level(env: &impl EnvProvider) -> Option<ColorLevel> {
@@ -153,30 +163,30 @@ fn force_color_level(env: &impl EnvProvider) -> Option<ColorLevel> {
     }
 }
 
-fn detect_env_color_level(env: &impl EnvProvider) -> ColorLevel {
+fn detect_env_color_level(env: &impl EnvProvider) -> Option<ColorLevel> {
     if env
         .get("TERM")
         .is_some_and(|term| term.eq_ignore_ascii_case("dumb"))
     {
-        return ColorLevel::NoColor;
+        return Some(ColorLevel::NoColor);
     }
 
     if env
         .get("COLORTERM")
         .is_some_and(|value| matches!(normalize_env_value(&value).as_str(), "truecolor" | "24bit"))
     {
-        return ColorLevel::TrueColor;
+        return Some(ColorLevel::TrueColor);
     }
 
     if env.is_set("WT_SESSION") {
-        return ColorLevel::TrueColor;
+        return Some(ColorLevel::TrueColor);
     }
 
     if env
         .get("TERM")
         .is_some_and(|term| term.to_ascii_lowercase().contains("256color"))
     {
-        return ColorLevel::Ansi256;
+        return Some(ColorLevel::Ansi256);
     }
 
     if env
@@ -185,14 +195,14 @@ fn detect_env_color_level(env: &impl EnvProvider) -> ColorLevel {
         || env.is_set("ANSICON")
         || env.is_set("CI")
     {
-        return ColorLevel::Ansi16;
+        return Some(ColorLevel::Ansi16);
     }
 
     if env.get("TERM").is_some_and(|term| !term.is_empty()) {
-        return ColorLevel::Ansi16;
+        return Some(ColorLevel::Ansi16);
     }
 
-    ColorLevel::NoColor
+    None
 }
 
 fn normalize_env_value(value: &str) -> String {
