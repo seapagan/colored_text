@@ -200,13 +200,12 @@ fn test_ansi256_foreground_colors(#[case] index: u8, #[case] expected: &str) {
     assert_eq!("test".ansi256(index).to_string(), expected);
 }
 
-#[test]
-fn test_ansi256_background_colors() {
+#[rstest]
+#[case(0, "\x1b[48;5;0mtest\x1b[0m")]
+#[case(255, "\x1b[48;5;255mtest\x1b[0m")]
+fn test_ansi256_background_colors(#[case] index: u8, #[case] expected: &str) {
     let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
-    assert_eq!(
-        "test".on_ansi256(236).to_string(),
-        "\x1b[48;5;236mtest\x1b[0m"
-    );
+    assert_eq!("test".on_ansi256(index).to_string(), expected);
 }
 
 #[test]

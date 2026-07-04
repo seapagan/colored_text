@@ -134,6 +134,7 @@ println!("{}", "Back to plain text".red().bold().clear());
 - `.ansi256(index)` - Custom text color using an ANSI 256-color index (0-255,
   compile-time enforced)
 - `.on_ansi256(index)` - Custom background color using an ANSI 256-color index
+  (0-255, compile-time enforced)
 - `.color256(index)` - Alias for `.ansi256(index)`
 - `.on_color256(index)` - Alias for `.on_ansi256(index)`
 - `.rgb(r, g, b)` - Custom text color using RGB values (0-255, compile-time
