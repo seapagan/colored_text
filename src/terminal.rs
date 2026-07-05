@@ -85,26 +85,13 @@ pub(crate) fn detect_color_level(
         return level;
     }
 
-    let explicit_depth = match depth_mode {
-        ColorDepthMode::Auto | ColorDepthMode::NoColor => None,
-        ColorDepthMode::Ansi16 => Some(ColorLevel::Ansi16),
-        ColorDepthMode::Ansi256 => Some(ColorLevel::Ansi256),
-        ColorDepthMode::TrueColor => Some(ColorLevel::TrueColor),
-    };
-
     if let Some(forced) = force_color_level(env) {
         return forced;
     }
 
-    if let Some(level) = explicit_depth {
-        return level;
-    }
+    let clicolor_forced = clicolor_force_enabled(env);
 
-    let clicolor_forced = env
-        .get("CLICOLOR_FORCE")
-        .is_some_and(|value| !value.is_empty() && value != "0");
-
-    if env.get("CLICOLOR").as_deref() == Some("0") && !clicolor_forced {
+    if clicolor_disabled(env) && !clicolor_forced {
         return ColorLevel::NoColor;
     }
 
@@ -112,19 +99,18 @@ pub(crate) fn detect_color_level(
         return ColorLevel::NoColor;
     }
 
-    if let Some(detected) = detect_env_color_level(env) {
-        if clicolor_forced {
-            return detected.max(ColorLevel::Ansi16);
-        }
+    let mut level = match detect_env_color_level(env) {
+        Some(detected) if clicolor_forced => detected.max(ColorLevel::Ansi16),
+        Some(detected) => detected,
+        None if clicolor_forced => ColorLevel::Ansi16,
+        None => ColorLevel::TrueColor,
+    };
 
-        return detected;
+    if let Some(explicit) = explicit_depth_level(depth_mode) {
+        level = explicit;
     }
 
-    if clicolor_forced {
-        return ColorLevel::Ansi16;
-    }
-
-    ColorLevel::TrueColor
+    level
 }
 
 fn hard_disable_level(
@@ -156,6 +142,27 @@ fn force_color_level(env: &impl EnvProvider) -> Option<ColorLevel> {
         }
         _ => Some(ColorLevel::Ansi16),
     }
+}
+
+fn explicit_depth_level(depth_mode: ColorDepthMode) -> Option<ColorLevel> {
+    match depth_mode {
+        ColorDepthMode::Auto | ColorDepthMode::NoColor => None,
+        ColorDepthMode::Ansi16 => Some(ColorLevel::Ansi16),
+        ColorDepthMode::Ansi256 => Some(ColorLevel::Ansi256),
+        ColorDepthMode::TrueColor => Some(ColorLevel::TrueColor),
+    }
+}
+
+fn clicolor_force_enabled(env: &impl EnvProvider) -> bool {
+    env.get("CLICOLOR_FORCE").is_some_and(|value| {
+        let normalized = normalize_env_value(&value);
+        !normalized.is_empty() && normalized != "0"
+    })
+}
+
+fn clicolor_disabled(env: &impl EnvProvider) -> bool {
+    env.get("CLICOLOR")
+        .is_some_and(|value| normalize_env_value(&value) == "0")
 }
 
 fn detect_env_color_level(env: &impl EnvProvider) -> Option<ColorLevel> {

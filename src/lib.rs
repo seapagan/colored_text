@@ -92,10 +92,12 @@
 //!
 //! For normal targets such as [`RenderTarget::Stdout`],
 //! [`RenderTarget::Stderr`], and [`RenderTarget::Terminal`], color depth is
-//! resolved from environment variables and the current configuration. For
-//! [`RenderTarget::Capabilities`], the supplied [`TerminalCapabilities`] are
-//! used as-is except for the hard disables: `NO_COLOR`, [`ColorMode::Never`],
-//! and [`ColorDepthMode::NoColor`].
+//! resolved from environment variables and the current configuration after
+//! color output is enabled. Positive [`ColorDepthMode`] values select the depth
+//! to use; they do not by themselves bypass [`ColorMode::Auto`] non-terminal
+//! suppression. For [`RenderTarget::Capabilities`], the supplied
+//! [`TerminalCapabilities`] are used as-is except for the hard disables:
+//! `NO_COLOR`, [`ColorMode::Never`], and [`ColorDepthMode::NoColor`].
 //!
 //! ```rust
 //! use colored_text::{ColorDepthMode, ColorMode, Colorize, ColorizeConfig};

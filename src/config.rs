@@ -45,11 +45,11 @@ pub enum ColorDepthMode {
     Auto,
     /// Disable all ANSI SGR output.
     NoColor,
-    /// Force named ANSI color output.
+    /// Select named ANSI color output when color output is enabled.
     Ansi16,
-    /// Force ANSI 256-color output.
+    /// Select ANSI 256-color output when color output is enabled.
     Ansi256,
-    /// Force 24-bit RGB truecolor output.
+    /// Select 24-bit RGB truecolor output when color output is enabled.
     TrueColor,
 }
 
@@ -101,8 +101,9 @@ impl ColorizeConfig {
     /// Set the runtime color depth override for the current thread.
     ///
     /// In [`ColorDepthMode::Auto`], color depth is detected from the target and
-    /// environment. For normal targets, explicit positive modes force a level
-    /// unless `FORCE_COLOR` requests a different level.
+    /// environment. For normal targets, explicit positive modes select a level
+    /// once color output is enabled, unless `FORCE_COLOR` requests a different
+    /// level.
     ///
     /// `NO_COLOR`, [`ColorMode::Never`], and [`ColorDepthMode::NoColor`] are
     /// hard disables. For [`RenderTarget::Capabilities`], positive explicit

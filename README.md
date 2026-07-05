@@ -271,11 +271,11 @@ let caps = ColorizeConfig::terminal_capabilities(RenderTarget::Stdout);
 println!("stdout color level: {:?}", caps.color_level);
 ```
 
-`ColorDepthMode::Auto` detects color depth from the output target and
-environment. When color output is enabled and no limiting depth signal is found,
-`Auto` on a terminal and `Always` both preserve full-fidelity truecolor output.
-`CLICOLOR_FORCE` force-enables color but does not specify a color depth, so it
-falls back to ANSI 16 unless other environment hints raise the level.
+`ColorDepthMode` selects the color depth used after color output has been
+enabled. It does not, by itself, force color output in `Auto` mode; use
+`ColorMode::Always`, `FORCE_COLOR`, or `CLICOLOR_FORCE` to force-enable output.
+When color output is enabled and no limiting depth signal is found, `Auto` on a
+terminal and `Always` both preserve full-fidelity truecolor output.
 
 For normal targets (`Stdout`, `Stderr`, and `Terminal(bool)`), color control
 precedence is:
@@ -284,18 +284,23 @@ precedence is:
 2. `ColorMode::Never`
 3. `ColorDepthMode::NoColor`
 4. `FORCE_COLOR`
-5. explicit `ColorDepthMode::{Ansi16, Ansi256, TrueColor}`
-6. `CLICOLOR=0`
+5. `CLICOLOR_FORCE`
+6. `CLICOLOR=0`, unless force-enabled
 7. `Auto` non-terminal suppression, unless force-enabled
 8. automatic terminal and environment detection
+9. explicit `ColorDepthMode::{Ansi16, Ansi256, TrueColor}`
 
 `NO_COLOR` is presence-based, so even `NO_COLOR=""` disables color. `FORCE_COLOR`
 accepts false-like values to disable color and values such as `1`, `2`, `3`,
 `ansi16`, `ansi256`, and `truecolor` to force a depth. Explicit positive
-`ColorDepthMode` values apply only when `FORCE_COLOR` is not set.
-`CLICOLOR_FORCE` follows the common convention that any non-empty value except
-`0` force-enables color. `CLICOLOR=0` disables color unless overridden by
-`FORCE_COLOR` or `CLICOLOR_FORCE`, including when `ColorMode::Always` is set.
+`ColorDepthMode` values apply only after color output is enabled and only when
+`FORCE_COLOR` is not set. `CLICOLOR_FORCE` follows the common convention that
+any non-empty value except `0` force-enables color, with a minimum level of ANSI
+16 unless environment hints or explicit `ColorDepthMode` select a higher level.
+`CLICOLOR=0` disables color unless overridden by `FORCE_COLOR` or
+`CLICOLOR_FORCE`, including when `ColorMode::Always` is set. `TERM=dumb` is an
+automatic capability hint, not a user opt-out; an explicit positive
+`ColorDepthMode` can override it once color output is enabled.
 
 For `RenderTarget::Capabilities`, the supplied `TerminalCapabilities` are exact:
 `FORCE_COLOR`, `CLICOLOR`, and positive `ColorDepthMode` values do not raise or
