@@ -274,8 +274,8 @@ println!("stdout color level: {:?}", caps.color_level);
 `ColorDepthMode` selects the color depth used after color output has been
 enabled. It does not, by itself, force color output in `Auto` mode; use
 `ColorMode::Always`, `FORCE_COLOR`, or `CLICOLOR_FORCE` to force-enable output.
-When color output is enabled and no limiting depth signal is found, `Auto` on a
-terminal and `Always` both preserve full-fidelity truecolor output.
+When color output is enabled and no usable depth signal is found, `Auto` on a
+terminal and `Always` both fall back to named ANSI 16 color output.
 
 For normal targets (`Stdout`, `Stderr`, and `Terminal(bool)`), color control
 precedence is:

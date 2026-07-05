@@ -749,7 +749,7 @@ fn test_force_color_fallback_values(
 #[case(TestEnv::default().with("CLICOLOR_FORCE", "1"), false, ColorLevel::Ansi16)]
 #[case(TestEnv::default().with("CLICOLOR", "0").with("CLICOLOR_FORCE", "1"), false, ColorLevel::Ansi16)]
 #[case(TestEnv::default(), false, ColorLevel::NoColor)]
-#[case(TestEnv::default(), true, ColorLevel::TrueColor)]
+#[case(TestEnv::default(), true, ColorLevel::Ansi16)]
 #[case(TestEnv::default().with("TERM", "dumb"), true, ColorLevel::NoColor)]
 #[case(TestEnv::default().with("TERM", "DUMB"), true, ColorLevel::NoColor)]
 #[case(TestEnv::default().with("COLORTERM", "truecolor"), true, ColorLevel::TrueColor)]
@@ -784,7 +784,7 @@ fn test_clicolor_force_can_still_detect_higher_depth() {
 }
 
 #[test]
-fn test_always_mode_uses_truecolor_without_terminal_env() {
+fn test_always_mode_uses_ansi16_without_terminal_env() {
     assert_eq!(
         detect_color_level(
             false,
@@ -792,7 +792,7 @@ fn test_always_mode_uses_truecolor_without_terminal_env() {
             ColorDepthMode::Auto,
             &TestEnv::default()
         ),
-        ColorLevel::TrueColor
+        ColorLevel::Ansi16
     );
 }
 
@@ -838,6 +838,13 @@ fn test_always_mode_uses_truecolor_without_terminal_env() {
     false,
     TestEnv::default(),
     ColorLevel::NoColor
+)]
+#[case(
+    ColorMode::Always,
+    ColorDepthMode::TrueColor,
+    false,
+    TestEnv::default(),
+    ColorLevel::TrueColor
 )]
 #[case(
     ColorMode::Always,
