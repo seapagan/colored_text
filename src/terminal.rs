@@ -103,7 +103,7 @@ pub(crate) fn detect_color_level(
         Some(detected) if clicolor_forced => detected.max(ColorLevel::Ansi16),
         Some(detected) => detected,
         None if clicolor_forced => ColorLevel::Ansi16,
-        None => ColorLevel::TrueColor,
+        None => ColorLevel::Ansi16,
     };
 
     if let Some(explicit) = explicit_depth_level(depth_mode) {
