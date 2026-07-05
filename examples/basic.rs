@@ -1,4 +1,4 @@
-use colored_text::{ColorMode, Colorize, ColorizeConfig};
+use colored_text::{ColorDepthMode, ColorMode, Colorize, ColorizeConfig, RenderTarget};
 
 fn main() {
     // Basic colors
@@ -14,6 +14,7 @@ fn main() {
 
     // Bright colors
     println!("\nBright colors:");
+    println!("{}", "Bright black text".bright_black());
     println!("{}", "Bright red text".bright_red());
     println!("{}", "Bright green text".bright_green());
     println!("{}", "Bright blue text".bright_blue());
@@ -23,6 +24,9 @@ fn main() {
     println!("{}", "Red background".on_red());
     println!("{}", "Green background".on_green());
     println!("{}", "Blue background".on_blue());
+    println!("{}", "Bright black background".on_bright_black());
+    println!("{}", "Bright red background".on_bright_red());
+    println!("{}", "Bright blue background".on_bright_blue());
 
     // Text styles
     println!("\nText styles:");
@@ -87,8 +91,23 @@ fn main() {
 
     // Runtime color modes
     println!("\nRuntime color modes:");
+    let caps = ColorizeConfig::terminal_capabilities(RenderTarget::Stdout);
+    println!("stdout is terminal: {}", caps.is_terminal);
+    println!("stdout color level: {:?}", caps.color_level);
+
+    // Runtime configuration is thread-local. Reset it after forcing modes for
+    // a specific output path.
     ColorizeConfig::set_color_mode(ColorMode::Always);
     println!("{}", "Forced color".red().bold());
+    ColorizeConfig::set_color_depth_mode(ColorDepthMode::TrueColor);
+    println!("{}", "RGB as truecolor".rgb(255, 128, 0));
+    ColorizeConfig::set_color_depth_mode(ColorDepthMode::Ansi256);
+    println!("{}", "RGB degraded to ANSI 256".rgb(255, 128, 0));
+    ColorizeConfig::set_color_depth_mode(ColorDepthMode::Ansi16);
+    println!("{}", "RGB degraded to ANSI 16".rgb(255, 128, 0));
+    ColorizeConfig::set_color_depth_mode(ColorDepthMode::NoColor);
+    println!("{}", "RGB rendered plain".rgb(255, 128, 0));
+    ColorizeConfig::set_color_depth_mode(ColorDepthMode::Auto);
     ColorizeConfig::set_color_mode(ColorMode::Never);
     println!("{}", "Forced plain output".red().bold());
     ColorizeConfig::set_color_mode(ColorMode::Auto);

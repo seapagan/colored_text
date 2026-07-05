@@ -13,14 +13,17 @@ Rust.
 - Support for basic colors, bright colors, and background colors
 - Text styling (bold, dim, italic, underline, inverse, strikethrough)
 - ANSI 256, RGB, and HEX color support for both text and background
+- Terminal color capability detection for no-color, ANSI 16, ANSI 256, and
+  truecolor output
+- Optional color-depth override for applications that know their output target
 - Composed style chaining with predictable override behavior
 - Works with string literals, owned strings, and format macros
 - Zero dependencies
-- Supports the `NO_COLOR` environment variable - if this is set, all colors are
-  disabled and the text is returned uncolored
+- Supports `NO_COLOR`, `FORCE_COLOR`, `CLICOLOR`, `CLICOLOR_FORCE`, `TERM`,
+  `COLORTERM`, `CI`, `WT_SESSION`, `ConEmuANSI`, and `ANSICON`
 - Supports explicit runtime color modes: `Auto`, `Always`, and `Never`
 - Detects if the output is NOT going to a terminal (e.g. is going to a file or a
-  pipe) and disables colors in `Auto` mode
+  pipe) and disables colors in `Auto` mode unless color is force-enabled
 - Supports explicit target-aware rendering for stdout, stderr, or custom
   terminal-aware destinations
 - Complete documentation and examples
@@ -33,6 +36,13 @@ Add this to your `Cargo.toml`:
 [dependencies]
 colored_text = "0.4.1"
 ```
+
+## Compatibility with 0.4.1
+
+Since `0.4.1`, `Colorize` has gained required trait methods for bright
+foreground and bright background colors. Most users rely on the blanket
+`impl<T: Display> Colorize for T` and are unaffected. Downstream crates with
+manual `impl Colorize for ...` blocks must implement the new methods.
 
 ## Usage
 
@@ -88,6 +98,7 @@ println!("{}", "Back to plain text".red().bold().clear());
 
 ### Bright Colors
 
+- `.bright_black()`
 - `.bright_red()`
 - `.bright_green()`
 - `.bright_blue()`
@@ -105,6 +116,7 @@ println!("{}", "Back to plain text".red().bold().clear());
 > For example:
 >
 > - `31` uses ANSI red / palette slot 1
+> - `90` uses ANSI bright black / palette slot 8
 > - `91` uses bright ANSI red / palette slot 9
 > - `38;5;1` uses 256-colour index 1
 > - `38;5;9` uses 256-colour index 9
@@ -119,6 +131,13 @@ println!("{}", "Back to plain text".red().bold().clear());
 - `.on_cyan()`
 - `.on_white()`
 - `.on_black()`
+
+### Bright Background Colors
+
+Bright background methods are available by prefixing bright color names with
+`on_`, for example `.on_bright_black()` and `.on_bright_red()`.
+
+They use the standard bright background SGR codes `100-107`.
 
 ### Styles
 
@@ -189,12 +208,16 @@ println!("{}", "Invalid".hex("xyz")); // Returns uncolored text
 println!("{}", "Wrong length".hex("#1234")); // Returns uncolored text
 ```
 
-## NO_COLOR Support
+## Environment Color Control
 
 This library respects the [NO_COLOR](https://no-color.org/) environment
 variable. If `NO_COLOR` is set (to any value), all color and style methods will
 return plain unformatted text. This makes it easy to disable all colors globally
 if needed.
+
+`NO_COLOR` is treated as an intentional user opt-out and always disables color
+and style output. If `NO_COLOR` is not set, `ColorMode::Never` and
+`ColorDepthMode::NoColor` also disable color and style output.
 
 ```rust
 // Colors enabled (NO_COLOR not set)
@@ -205,11 +228,15 @@ std::env::set_var("NO_COLOR", "1");
 println!("{}", "Red text".red()); // Prints without color
 ```
 
+Detection is heuristic and environment-based. The crate does not use terminfo,
+termcap, WinAPI console enablement, active terminal queries, CLI argument
+parsing, or runtime dependencies.
+
 ## Runtime Color Modes
 
 By default, this library uses `ColorMode::Auto`: it checks if stdout is going to
-a terminal and disables colors when it is not. Applications can override that
-behavior explicitly using `ColorizeConfig`:
+a terminal and disables colors when it is not, unless color is force-enabled.
+Applications can override that behavior explicitly using `ColorizeConfig`:
 
 ```rust
 use colored_text::{ColorMode, Colorize, ColorizeConfig};
@@ -224,21 +251,62 @@ ColorizeConfig::set_color_mode(ColorMode::Auto);
 println!("{}", "Colored only in terminals".red());
 ```
 
+Color depth is controlled separately with `ColorDepthMode`:
+
+```rust
+use colored_text::{ColorDepthMode, ColorizeConfig};
+
+ColorizeConfig::set_color_depth_mode(ColorDepthMode::Ansi256);
+```
+
 The runtime configuration is thread-local. This is useful in tests or
 applications that want to force color on or off for a specific execution path.
 
-`NO_COLOR` still takes precedence in `Auto` and `Always` mode. If `NO_COLOR` is
-set, output is plain text.
+Applications can inspect the resolved capability level:
 
-ANSI 256-color methods use the same runtime policy as the named, RGB, HSL, and
-hex color methods. `ColorMode` and `NO_COLOR` control whether ANSI 256 SGR
-output is emitted.
+```rust
+use colored_text::{ColorizeConfig, RenderTarget};
+
+let caps = ColorizeConfig::terminal_capabilities(RenderTarget::Stdout);
+println!("stdout color level: {:?}", caps.color_level);
+```
+
+`ColorDepthMode::Auto` detects color depth from the output target and
+environment. When color output is enabled and no limiting depth signal is found,
+`Auto` on a terminal and `Always` both preserve full-fidelity truecolor output.
+`CLICOLOR_FORCE` force-enables color but does not specify a color depth, so it
+falls back to ANSI 16 unless other environment hints raise the level.
+
+For normal targets (`Stdout`, `Stderr`, and `Terminal(bool)`), color control
+precedence is:
+
+1. `NO_COLOR`
+2. `ColorMode::Never`
+3. `ColorDepthMode::NoColor`
+4. `FORCE_COLOR`
+5. explicit `ColorDepthMode::{Ansi16, Ansi256, TrueColor}`
+6. `CLICOLOR=0`
+7. `Auto` non-terminal suppression, unless force-enabled
+8. automatic terminal and environment detection
+
+`NO_COLOR` is presence-based, so even `NO_COLOR=""` disables color. `FORCE_COLOR`
+accepts false-like values to disable color and values such as `1`, `2`, `3`,
+`ansi16`, `ansi256`, and `truecolor` to force a depth. Explicit positive
+`ColorDepthMode` values apply only when `FORCE_COLOR` is not set.
+`CLICOLOR_FORCE` follows the common convention that any non-empty value except
+`0` force-enables color. `CLICOLOR=0` disables color unless overridden by
+`FORCE_COLOR` or `CLICOLOR_FORCE`, including when `ColorMode::Always` is set.
+
+For `RenderTarget::Capabilities`, the supplied `TerminalCapabilities` are exact:
+`FORCE_COLOR`, `CLICOLOR`, and positive `ColorDepthMode` values do not raise or
+lower the supplied color level. Only hard disables apply: `NO_COLOR`,
+`ColorMode::Never`, and `ColorDepthMode::NoColor`.
 
 For non-stdout destinations, use `StyledText::render` with a `RenderTarget` so
 `Auto` mode evaluates the real output target:
 
 ```rust
-use colored_text::{Colorize, RenderTarget};
+use colored_text::{ColorLevel, Colorize, RenderTarget, TerminalCapabilities};
 
 let warning = "Warning".yellow().bold();
 
@@ -246,6 +314,11 @@ eprintln!("{}", warning.render(RenderTarget::Stderr));
 
 let captured = warning.render(RenderTarget::Terminal(false));
 assert_eq!(captured, "Warning");
+
+let exact = warning.render(RenderTarget::Capabilities(TerminalCapabilities {
+    is_terminal: true,
+    color_level: ColorLevel::Ansi256,
+}));
 ```
 
 ## Terminal Compatibility
@@ -260,11 +333,23 @@ your terminal emulator and its configuration:
 - ANSI 256 colors use 256-color palette indexes with `38;5` and `48;5` SGR
   sequences
 - RGB colors require true color support in your terminal
+- Named color methods such as `.red()` always emit named ANSI SGR codes when
+  color is enabled
+- RGB, hex, and HSL colors degrade to ANSI 256 or named ANSI colors when the
+  resolved color level does not support truecolor
+- ANSI 256 colors degrade to named ANSI colors when the resolved color level is
+  ANSI 16
 - Some styling options (like italic) might not work in all terminals
 
 ## Examples
 
 Check out the [examples](examples/) directory for more usage examples.
+
+Right now we only have one example `basic.rs`. You can run this using:
+
+```bash
+cargo run --example basic
+```
 
 ## License
 

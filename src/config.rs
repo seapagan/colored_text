@@ -1,6 +1,10 @@
 use std::cell::RefCell;
 use std::io::IsTerminal;
 
+use crate::terminal::{
+    color_level_for_capabilities, terminal_capabilities, ColorLevel, TerminalCapabilities,
+};
+
 /// Runtime color policy for rendered output.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum ColorMode {
@@ -24,6 +28,29 @@ pub enum RenderTarget {
     Stderr,
     /// Use an explicit terminal capability for a custom destination.
     Terminal(bool),
+    /// Use exact, caller-provided capabilities for a custom destination.
+    ///
+    /// Environment capability overrides such as `FORCE_COLOR` and positive
+    /// [`ColorDepthMode`] settings do not raise or lower this supplied level.
+    /// The hard disables still apply: `NO_COLOR`, [`ColorMode::Never`], and
+    /// [`ColorDepthMode::NoColor`].
+    Capabilities(TerminalCapabilities),
+}
+
+/// Runtime color depth override for rendered output.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum ColorDepthMode {
+    /// Detect color depth from the output target and environment.
+    #[default]
+    Auto,
+    /// Disable all ANSI SGR output.
+    NoColor,
+    /// Force named ANSI color output.
+    Ansi16,
+    /// Force ANSI 256-color output.
+    Ansi256,
+    /// Force 24-bit RGB truecolor output.
+    TrueColor,
 }
 
 /// Configuration for controlling runtime color behavior.
@@ -34,6 +61,7 @@ pub enum RenderTarget {
 #[derive(Clone, Debug)]
 pub struct ColorizeConfig {
     color_mode: ColorMode,
+    color_depth_mode: ColorDepthMode,
 }
 
 thread_local! {
@@ -50,6 +78,7 @@ impl Default for ColorizeConfig {
     fn default() -> Self {
         Self {
             color_mode: ColorMode::Auto,
+            color_depth_mode: ColorDepthMode::Auto,
         }
     }
 }
@@ -69,6 +98,34 @@ impl ColorizeConfig {
         CONFIG.with(|config| config.borrow().color_mode)
     }
 
+    /// Set the runtime color depth override for the current thread.
+    ///
+    /// In [`ColorDepthMode::Auto`], color depth is detected from the target and
+    /// environment. For normal targets, explicit positive modes force a level
+    /// unless `FORCE_COLOR` requests a different level.
+    ///
+    /// `NO_COLOR`, [`ColorMode::Never`], and [`ColorDepthMode::NoColor`] are
+    /// hard disables. For [`RenderTarget::Capabilities`], positive explicit
+    /// modes do not alter the caller-supplied capability level.
+    pub fn set_color_depth_mode(mode: ColorDepthMode) {
+        CONFIG.with(|config| config.borrow_mut().color_depth_mode = mode);
+    }
+
+    /// Get the runtime color depth override for the current thread.
+    pub fn color_depth_mode() -> ColorDepthMode {
+        CONFIG.with(|config| config.borrow().color_depth_mode)
+    }
+
+    /// Resolve terminal capabilities for a render target using current config.
+    pub fn terminal_capabilities(target: RenderTarget) -> TerminalCapabilities {
+        capabilities_for(target)
+    }
+
+    /// Resolve the color level for a render target using current config.
+    pub fn color_level(target: RenderTarget) -> ColorLevel {
+        capabilities_for(target).color_level
+    }
+
     /// Compatibility shim for the previous API.
     ///
     /// `true` maps to [`ColorMode::Auto`], and `false` maps to
@@ -84,28 +141,28 @@ impl ColorizeConfig {
     }
 }
 
-/// Evaluate the current runtime color policy for this thread.
-///
-/// This respects [`ColorizeConfig::color_mode()`], and `NO_COLOR` takes
-/// precedence over both [`ColorMode::Auto`] and [`ColorMode::Always`].
-pub(crate) fn should_colorize() -> bool {
-    should_colorize_for(RenderTarget::Stdout)
+pub(crate) fn color_level() -> ColorLevel {
+    color_level_for(RenderTarget::Stdout)
 }
 
-/// Evaluate the current runtime color policy for a specific render target.
-pub(crate) fn should_colorize_for(target: RenderTarget) -> bool {
-    match ColorizeConfig::color_mode() {
-        ColorMode::Never => false,
-        ColorMode::Always => std::env::var_os("NO_COLOR").is_none(),
-        ColorMode::Auto => std::env::var_os("NO_COLOR").is_none() && target_is_terminal(target),
-    }
+pub(crate) fn color_level_for(target: RenderTarget) -> ColorLevel {
+    capabilities_for(target).color_level
 }
 
-fn target_is_terminal(target: RenderTarget) -> bool {
+fn capabilities_for(target: RenderTarget) -> TerminalCapabilities {
+    let color_mode = ColorizeConfig::color_mode();
+    let depth_mode = ColorizeConfig::color_depth_mode();
+
     match target {
-        RenderTarget::Stdout => stdout_is_terminal(),
-        RenderTarget::Stderr => stderr_is_terminal(),
-        RenderTarget::Terminal(value) => value,
+        RenderTarget::Capabilities(capabilities) => TerminalCapabilities {
+            color_level: color_level_for_capabilities(capabilities, color_mode, depth_mode),
+            ..capabilities
+        },
+        RenderTarget::Stdout => terminal_capabilities(stdout_is_terminal(), color_mode, depth_mode),
+        RenderTarget::Stderr => terminal_capabilities(stderr_is_terminal(), color_mode, depth_mode),
+        RenderTarget::Terminal(is_terminal) => {
+            terminal_capabilities(is_terminal, color_mode, depth_mode)
+        }
     }
 }
 
