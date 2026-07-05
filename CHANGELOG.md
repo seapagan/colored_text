@@ -5,6 +5,21 @@ project since the first release.
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1](https://github.com/seapagan/colored_text/releases/tag/0.5.1) (2026-07-05)
+
+Note: this is an observable behavior change.
+
+When color output is enabled but no terminal color-depth hints are available,
+`Auto`/`Always` now resolve to `Ansi16` instead of `TrueColor`.
+Explicit truecolor configuration and truecolor-capable environment hints are
+unchanged.
+
+**Bug Fixes**
+
+- Fix: use ansi16 for unknown color depth ([#12](https://github.com/seapagan/colored_text/pull/12)) by [seapagan](https://github.com/seapagan)
+
+[`Full Changelog`](https://github.com/seapagan/colored_text/compare/0.5.0...0.5.1) | [`Diff`](https://github.com/seapagan/colored_text/compare/0.5.0...0.5.1.diff) | [`Patch`](https://github.com/seapagan/colored_text/compare/0.5.0...0.5.1.patch)
+
 ## [0.5.0](https://github.com/seapagan/colored_text/releases/tag/0.5.0) (2026-07-05)
 
 **New Features**
