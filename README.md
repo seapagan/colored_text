@@ -34,7 +34,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-colored_text = "0.4.1"
+colored_text = "0.5.0"
 ```
 
 ## Compatibility with 0.4.1

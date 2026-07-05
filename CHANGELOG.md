@@ -5,6 +5,19 @@ project since the first release.
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0](https://github.com/seapagan/colored_text/releases/tag/0.5.0) (2026-07-05)
+
+**New Features**
+
+- Add terminal color capability detection ([#11](https://github.com/seapagan/colored_text/pull/11)) by [seapagan](https://github.com/seapagan)
+- Feat: add ansi256 color support ([#10](https://github.com/seapagan/colored_text/pull/10)) by [seapagan](https://github.com/seapagan)
+
+**Documentation**
+
+- Docs: add note about bright color and theme support ([#9](https://github.com/seapagan/colored_text/pull/9)) by [seapagan](https://github.com/seapagan)
+
+[`Full Changelog`](https://github.com/seapagan/colored_text/compare/0.4.1...0.5.0) | [`Diff`](https://github.com/seapagan/colored_text/compare/0.4.1...0.5.0.diff) | [`Patch`](https://github.com/seapagan/colored_text/compare/0.4.1...0.5.0.patch)
+
 ## [0.4.1](https://github.com/seapagan/colored_text/releases/tag/0.4.1) (2026-04-04)
 
 **Documentation**
@@ -51,6 +64,6 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [0.1.1](https://github.com/seapagan/colored_text/releases/tag/0.1.1) (2025-02-10)
 
 Initial Release
-
 ---
+
 *This changelog was generated using [github-changelog-md](http://changelog.seapagan.net/) by [Seapagan](https://github.com/seapagan)*
