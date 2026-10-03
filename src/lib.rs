@@ -45,6 +45,7 @@
 //! - Text styles (bold, dim, italic, underline)
 //! - ANSI 256-color foreground and background support
 //! - RGB, HSL, and Hex color support
+//! - Structured color resolution for custom renderers and TUIs
 //! - Terminal color capability detection
 //! - RGB, HSL, and Hex degradation when truecolor is unavailable
 //! - Composed style chaining
@@ -121,6 +122,38 @@
 //! let caps = ColorizeConfig::terminal_capabilities(RenderTarget::Stdout);
 //! println!("stdout color level: {:?}", caps.color_level);
 //! ```
+//!
+//! # Structured Color Resolution
+//!
+//! Custom renderers can use [`AnsiColor`], [`ResolvedColor`], and the public
+//! resolvers without constructing ANSI strings. Capability detection is separate:
+//!
+//! ```
+//! use colored_text::{ColorizeConfig, RenderTarget, ResolvedColor, resolve_rgb};
+//!
+//! let level = ColorizeConfig::color_level(RenderTarget::Stdout);
+//! match resolve_rgb(215, 58, 74, level) {
+//!     Some(ResolvedColor::Named(color)) => { /* map the terminal palette entry */ }
+//!     Some(ResolvedColor::Ansi256(index)) => { /* map the indexed color */ }
+//!     Some(ResolvedColor::Rgb(r, g, b)) => { /* use exact RGB channels */ }
+//!     None => { /* leave color unset */ }
+//! }
+//! ```
+//!
+//! [`resolve_named`] preserves terminal palette identity at every enabled depth.
+//! [`resolve_ansi256`] keeps indexed colors indexed above ANSI 16.
+//! [`resolve_rgb`] selects named/indexed/exact RGB according to [`ColorLevel`].
+//! [`resolve_hsl`] and [`resolve_hex`] validate then use the same RGB policy.
+//! Invalid input returns [`ColorInputError`], even at `NoColor`; valid input
+//! with color disabled returns `Ok(None)`. Legacy styling semantics are unchanged.
+//!
+//! # Minimum Supported Rust Version
+//!
+//! Rust 1.80.0 supports the library, examples, dev dependencies, and tests.
+//! The exact-toolchain boundary was verified: 1.79.0 fails on the test suite's
+//! `std::sync::LazyLock`, while 1.80.0 passes with the checked-in lockfile.
+//! `Cargo.toml` is the source of truth; dependency updates must preserve the MSRV
+//! or explicitly document a support-policy change.
 //!
 //! # Compatibility with 0.4.1
 //!
