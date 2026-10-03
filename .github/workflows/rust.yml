@@ -1,22 +1,116 @@
-name: Tests
+name: Rust CI
 
 on:
   push:
-    branches: ["main"]
+    branches: [main]
   pull_request:
-    branches: ["main"]
+    branches: [main]
   workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
+  RUST_VERSION: 1.99.0
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-
+  library:
+    name: Library (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15, windows-2025]
+    runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - name: Build
-        run: cargo build
-      - name: Run tests
-        run: cargo test
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install current stable Rust
+        uses: seapagan/setup-rust@a91f5a34c552642ece0e8cef8b5e9226f41a3c0b # v1.0.0
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: rustfmt clippy
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          prefix-key: v1-${{ runner.os }}-rust-${{ env.RUST_VERSION }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Install test tools
+        uses: taiki-e/install-action@83ac0ad63c0167e6f06796fab0fce28db1bf3db0 # v2.87.22
+        with:
+          tool: cargo-make@0.37.24, cargo-nextest@0.9.146
+      - name: Verify the library
+        run: |
+          cargo make format
+          cargo make check
+          cargo make clippy
+          cargo make test
+          cargo make doctest
+          cargo make doc
+          cargo make build
+          cargo make package
+
+  msrv:
+    name: Exact declared MSRV
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Read rust-version from Cargo.toml
+        id: msrv
+        run: printf 'version=%s\n' "$(python3 scripts/msrv.py --print)" >> "$GITHUB_OUTPUT"
+      - name: Install declared Rust
+        uses: seapagan/setup-rust@a91f5a34c552642ece0e8cef8b5e9226f41a3c0b # v1.0.0
+        with:
+          toolchain: ${{ steps.msrv.outputs.version }}
+          components: rustfmt clippy
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          prefix-key: v1-${{ runner.os }}-rust-${{ steps.msrv.outputs.version }}
+          shared-key: msrv
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Install task runner
+        uses: taiki-e/install-action@83ac0ad63c0167e6f06796fab0fce28db1bf3db0 # v2.87.22
+        with:
+          tool: cargo-make@0.37.24
+      - name: Verify the full MSRV compiler gate
+        run: cargo make msrv
+
+  quality:
+    name: Dependency policy, workflows, and coverage
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install current stable Rust
+        uses: seapagan/setup-rust@a91f5a34c552642ece0e8cef8b5e9226f41a3c0b # v1.0.0
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: llvm-tools-preview
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          prefix-key: v1-${{ runner.os }}-rust-${{ env.RUST_VERSION }}
+          shared-key: quality
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Install quality tools
+        uses: taiki-e/install-action@83ac0ad63c0167e6f06796fab0fce28db1bf3db0 # v2.87.22
+        with:
+          tool: cargo-make@0.37.24, cargo-nextest@0.9.146, cargo-llvm-cov@0.9.1, cargo-audit@0.22.2, cargo-deny@0.20.2, actionlint@1.7.12
+      - name: Verify dependencies, workflows, and coverage
+        run: |
+          cargo make audit
+          cargo make deny
+          cargo make actions-lint
+          cargo make coverage
