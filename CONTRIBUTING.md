@@ -22,10 +22,12 @@ crate's MSRV.
 
 Install current stable Rust with rustfmt, Clippy, and llvm-tools-preview, plus
 cargo-make, cargo-nextest, cargo-llvm-cov, cargo-audit, cargo-deny, actionlint,
-and Zizmor. Python 3.11 or newer runs the manifest-based MSRV helper using only
-the standard library. On Windows, the task invokes `python`; elsewhere it
-invokes `python3`. Install the exact declared Rust toolchain with Clippy and
-rustfmt before running the MSRV task:
+and Zizmor. The MSRV task uses cargo-make's embedded Duckscript on every
+platform, including native Windows. It reads Cargo metadata from `Cargo.toml`,
+requires an exact stable `major.minor.patch` rust-version, and invokes that
+toolchain for formatting, checking, Clippy, tests, doctests, documentation,
+builds, and packaging. No external scripting runtime is required. Install the
+exact declared Rust toolchain with Clippy and rustfmt before running the task:
 
 ```console
 rustup toolchain install 1.80.0 --profile minimal --component clippy,rustfmt

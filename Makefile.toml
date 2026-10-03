@@ -42,14 +42,46 @@ description = "Verify packaging from the clean committed tree"
 command = "cargo"
 args = ["package", "--locked"]
 
-[tasks.msrv]
-description = "Read rust-version from Cargo.toml and verify that exact toolchain"
-env = { RUSTDOCFLAGS = "-D warnings" }
-command = "python3"
-args = ["scripts/msrv.py"]
+[tasks.msrv-version]
+description = "Read and validate the exact package MSRV from Cargo.toml"
+script_runner = "@duckscript"
+script = '''
+metadata_output = exec cargo metadata --manifest-path Cargo.toml --no-deps --format-version 1 --locked
+assert_eq ${metadata_output.code} 0 "Cannot determine package.rust-version from Cargo.toml: ${metadata_output.stderr}"
+metadata = json_parse ${metadata_output.stdout}
+assert_eq ${metadata.packages.length} 1 "Expected one package in Cargo.toml to determine the MSRV"
+msrv = set ${metadata.packages[0].rust_version}
+missing = is_empty ${msrv}
+assert_false ${missing} "Cargo.toml package.rust-version must declare an exact stable major.minor.patch version"
+echo Validating Cargo.toml package.rust-version: ${msrv}
+version = semver_parse ${msrv}
+exact_version = set "${version.major}.${version.minor}.${version.patch}"
+assert_eq ${msrv} ${exact_version} "Cargo.toml package.rust-version must declare an exact stable major.minor.patch version"
+set_env COLORED_TEXT_MSRV ${msrv}
+echo Manifest MSRV: ${msrv}
+output_file = get_env GITHUB_OUTPUT
+output_missing = is_empty ${output_file}
+if not ${output_missing}
+    appendfile ${output_file} "version=${msrv}\n"
+end
+'''
 
-[tasks.msrv.windows]
-command = "python"
+[tasks.msrv]
+description = "Verify every supported path with the exact manifest-declared toolchain"
+dependencies = ["msrv-version"]
+env = { RUSTDOCFLAGS = "-D warnings" }
+script_runner = "@duckscript"
+script = '''
+msrv = get_env COLORED_TEXT_MSRV
+exec --fail-on-error cargo +${msrv} fmt --all -- --check
+exec --fail-on-error cargo +${msrv} check --all-targets --all-features --locked
+exec --fail-on-error cargo +${msrv} clippy --all-targets --all-features --locked -- -D warnings
+exec --fail-on-error cargo +${msrv} test --all-targets --all-features --locked
+exec --fail-on-error cargo +${msrv} test --doc --all-features --locked
+exec --fail-on-error cargo +${msrv} doc --no-deps --all-features --locked
+exec --fail-on-error cargo +${msrv} build --all-targets --all-features --locked
+exec --fail-on-error cargo +${msrv} package --locked
+'''
 
 [tasks.audit]
 description = "Audit locked dependencies for known vulnerabilities"

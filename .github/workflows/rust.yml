@@ -68,9 +68,13 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Install task runner
+        uses: taiki-e/install-action@83ac0ad63c0167e6f06796fab0fce28db1bf3db0 # v2.87.22
+        with:
+          tool: cargo-make@0.37.24
       - name: Read rust-version from Cargo.toml
         id: msrv
-        run: printf 'version=%s\n' "$(python3 scripts/msrv.py --print)" >> "$GITHUB_OUTPUT"
+        run: cargo make msrv-version
       - name: Install declared Rust
         uses: seapagan/setup-rust@a91f5a34c552642ece0e8cef8b5e9226f41a3c0b # v1.0.0
         with:
@@ -82,10 +86,6 @@ jobs:
           prefix-key: v1-${{ runner.os }}-rust-${{ steps.msrv.outputs.version }}
           shared-key: msrv
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Install task runner
-        uses: taiki-e/install-action@83ac0ad63c0167e6f06796fab0fce28db1bf3db0 # v2.87.22
-        with:
-          tool: cargo-make@0.37.24
       - name: Verify the full MSRV compiler gate
         run: cargo make msrv
 
