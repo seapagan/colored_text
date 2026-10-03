@@ -41,8 +41,9 @@ cargo make verify
 The full gate checks formatting, all targets/features, Clippy and rustdoc with
 warnings denied, unit/integration tests and doctests, builds, packaging, the
 exact declared MSRV, advisories/licenses/sources, workflow syntax/security,
-and coverage. Packaging requires a clean committed tree. During development,
-run individual tasks and use `cargo package --locked --allow-dirty` as an
+and coverage, plus the optional Python support tasks below. Packaging requires
+a clean committed tree. During development, run individual tasks and use
+`cargo package --locked --allow-dirty` as an
 interim check; run the canonical gate again after committing.
 
 ```console
@@ -65,6 +66,52 @@ stable Rust. A separate Linux job derives and verifies the exact MSRV from
 `Cargo.toml`. Dependency/workflow audits and coverage run on Linux. Actions are
 pinned to full commit SHAs; verify upstream stable releases and compatibility
 before updating pins.
+
+### Optional Python support tooling
+
+Python 3.10+ is required only for support tooling. The checker, its hardened
+standard-library `unittest` regression suite, and Ruff configuration are ported
+from [Keyhold main](https://github.com/seapagan/keyhold/tree/0cbd7108cd46aae929b5d39b77ecf3290fa913e9).
+Lizard must be exactly 1.23.0 for parser compatibility. Ruff and mypy check the
+support code; for example, install the optional tools with uv:
+
+```sh
+uv tool install 'lizard==1.23.0'
+uv tool install 'ruff==0.16.10'
+uv tool install 'mypy==2.4.0'
+```
+
+`cargo make verify` includes `python-format` (Ruff format check), `python-lint`
+(Ruff lint), `python-type` (strict mypy), `python-test` (`unittest`), and
+`complexity`. Tasks skip when their required optional executable is absent;
+`python-test` and `complexity` also skip when no Python 3.10+ interpreter is available. Installed
+tools that fail remain failures. Windows uses `python` for tests and complexity,
+with native executable-presence checks for Ruff and mypy. Unrelated Rust tasks
+do not require Python tooling. The existing Linux quality job installs Python,
+Ruff, mypy, and the exact Lizard version and runs every support task.
+
+Run `cargo make complexity` for the Codacy-aligned report. Git discovers
+non-ignored tracked and untracked Rust (`*.rs`) and Python (`*.py`) sources,
+**including maintained tests**. Keyhold's Codacy `tests/**` exclusion is
+intentionally not copied. Deleted files are omitted, and conflicted index
+entries are deduplicated.
+
+The defaults are overrideable through the environment:
+
+| Variable | Default |
+| --- | --- |
+| `COMPLEXITY_LIZARD_VERSION` | `1.23.0` |
+| `COMPLEXITY_MAX_CCN` | `10` |
+| `COMPLEXITY_MAX_FUNCTION_NLOC` | `50` |
+| `COMPLEXITY_MAX_PARAMETERS` | `8` |
+| `COMPLEXITY_MAX_FILE_NLOC` | `500` |
+
+Equality is allowed; only values above a threshold are findings. Complexity
+findings are advisory and do not fail verification. Malformed or unexpected
+Lizard output, source-set mismatches, version mismatches, invalid configuration,
+missing required inputs after task start, and other tooling/setup failures are
+fatal. The regression fixture disables local Git commit signing so inherited
+global signing/GPG configuration cannot break its temporary repository.
 
 ## Commits
 
