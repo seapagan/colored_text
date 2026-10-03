@@ -1,6 +1,60 @@
 [config]
 skip_core_tasks = true
 
+[env]
+COMPLEXITY_LIZARD_VERSION = { value = "1.23.0", condition = { env_not_set = ["COMPLEXITY_LIZARD_VERSION"] } }
+COMPLEXITY_MAX_CCN = { value = "10", condition = { env_not_set = ["COMPLEXITY_MAX_CCN"] } }
+COMPLEXITY_MAX_FUNCTION_NLOC = { value = "50", condition = { env_not_set = ["COMPLEXITY_MAX_FUNCTION_NLOC"] } }
+COMPLEXITY_MAX_PARAMETERS = { value = "8", condition = { env_not_set = ["COMPLEXITY_MAX_PARAMETERS"] } }
+COMPLEXITY_MAX_FILE_NLOC = { value = "500", condition = { env_not_set = ["COMPLEXITY_MAX_FILE_NLOC"] } }
+
+[tasks.python-format]
+description = "Check Python support-code formatting"
+condition_script = ["command -v ruff"]
+command = "ruff"
+args = ["format", "--check", "."]
+
+[tasks.python-format.windows]
+condition_script = ["where ruff"]
+
+[tasks.python-lint]
+description = "Lint Python support code"
+condition_script = ["command -v ruff"]
+command = "ruff"
+args = ["check", "."]
+
+[tasks.python-lint.windows]
+condition_script = ["where ruff"]
+
+[tasks.python-type]
+description = "Type-check Python support code strictly"
+condition_script = ["command -v mypy"]
+command = "mypy"
+args = ["--strict", "--exclude-gitignore", "."]
+
+[tasks.python-type.windows]
+condition_script = ["where mypy"]
+
+[tasks.python-test]
+description = "Test Python support code"
+condition_script = ['python3 -c "import sys; raise SystemExit(sys.version_info < (3, 10))"']
+command = "python3"
+args = ["-B", "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py"]
+
+[tasks.python-test.windows]
+condition_script = ['python -c "import sys; raise SystemExit(sys.version_info < (3, 10))"']
+command = "python"
+
+[tasks.complexity]
+description = "Report Codacy-aligned Rust and Python complexity findings without failing verification"
+condition_script = ["python3 -c \"import shutil, sys; raise SystemExit(sys.version_info < (3, 10) or shutil.which('lizard') is None)\""]
+command = "python3"
+args = ["scripts/check_complexity.py"]
+
+[tasks.complexity.windows]
+condition_script = ["python -c \"import shutil, sys; raise SystemExit(sys.version_info < (3, 10) or shutil.which('lizard') is None)\""]
+command = "python"
+
 [tasks.format]
 description = "Check Rust formatting"
 command = "cargo"
@@ -131,6 +185,7 @@ alias = "coverage-html"
 [tasks.verify]
 description = "Run the complete local library verification gate"
 dependencies = [
+    "python-format", "python-lint", "python-type", "python-test", "complexity",
     "format", "check", "clippy", "test", "doctest", "doc", "build", "package",
     "msrv", "audit", "deny", "actions-lint", "zizmor", "coverage",
 ]
