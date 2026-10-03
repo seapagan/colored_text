@@ -154,7 +154,11 @@ pub fn hsl_to_rgb(h: f32, s: f32, l: f32) -> Result<(u8, u8, u8), ColorInputErro
             return Err(ColorInputError::InvalidHsl { component, value });
         }
     }
-    Ok(color::hsl_to_rgb(if h == 360. { 0. } else { h }, s, l))
+    Ok(color::legacy_permissive_hsl_to_rgb(
+        if h == 360. { 0. } else { h },
+        s,
+        l,
+    ))
 }
 
 /// Parse hex into RGB without terminal resolution or environment detection.
@@ -179,7 +183,7 @@ pub fn hsl_to_rgb(h: f32, s: f32, l: f32) -> Result<(u8, u8, u8), ColorInputErro
 pub fn hex_to_rgb(input: &str) -> Result<(u8, u8, u8), ColorInputError> {
     let hex = input.strip_prefix('#').unwrap_or(input);
     let rgb = if hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        color::hex_to_rgb(hex)
+        color::legacy_permissive_hex_to_rgb(hex)
     } else {
         None
     };

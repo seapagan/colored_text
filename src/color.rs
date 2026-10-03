@@ -46,7 +46,7 @@ const NAMED_COLORS: [AnsiColor; 16] = [
 /// - `h`: Hue in degrees
 /// - `s`: Saturation percentage
 /// - `l`: Lightness percentage
-pub(crate) fn hsl_to_rgb(h: f32, s: f32, l: f32) -> (u8, u8, u8) {
+pub(crate) fn legacy_permissive_hsl_to_rgb(h: f32, s: f32, l: f32) -> (u8, u8, u8) {
     let h = h / 360.0;
     let s = s / 100.0;
     let l = l / 100.0;
@@ -71,7 +71,7 @@ pub(crate) fn hsl_to_rgb(h: f32, s: f32, l: f32) -> (u8, u8, u8) {
     )
 }
 
-pub(crate) fn hex_to_rgb(hex: &str) -> Option<(u8, u8, u8)> {
+pub(crate) fn legacy_permissive_hex_to_rgb(hex: &str) -> Option<(u8, u8, u8)> {
     let hex = hex.trim_start_matches('#');
     let expanded = match hex.len() {
         3 => {

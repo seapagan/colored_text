@@ -1,6 +1,8 @@
 use std::fmt::{self, Display};
 
-use crate::color::{hex_to_rgb, hsl_to_rgb, AnsiColor, ColorSpec};
+use crate::color::{
+    legacy_permissive_hex_to_rgb, legacy_permissive_hsl_to_rgb, AnsiColor, ColorSpec,
+};
 use crate::config::{color_level, color_level_for, RenderTarget};
 use crate::terminal::ColorLevel;
 
@@ -341,13 +343,13 @@ impl StyledText {
 
     /// Convert HSL to RGB and apply it to the foreground color.
     pub fn hsl(self, h: f32, s: f32, l: f32) -> Self {
-        let (r, g, b) = hsl_to_rgb(h, s, l);
+        let (r, g, b) = legacy_permissive_hsl_to_rgb(h, s, l);
         self.rgb(r, g, b)
     }
 
     /// Convert HSL to RGB and apply it to the background color.
     pub fn on_hsl(self, h: f32, s: f32, l: f32) -> Self {
-        let (r, g, b) = hsl_to_rgb(h, s, l);
+        let (r, g, b) = legacy_permissive_hsl_to_rgb(h, s, l);
         self.on_rgb(r, g, b)
     }
 
@@ -355,7 +357,7 @@ impl StyledText {
     ///
     /// Invalid input clears all styling and returns plain text.
     pub fn hex(self, hex: &str) -> Self {
-        if let Some((r, g, b)) = hex_to_rgb(hex) {
+        if let Some((r, g, b)) = legacy_permissive_hex_to_rgb(hex) {
             self.rgb(r, g, b)
         } else {
             self.clear()
@@ -366,7 +368,7 @@ impl StyledText {
     ///
     /// Invalid input clears all styling and returns plain text.
     pub fn on_hex(self, hex: &str) -> Self {
-        if let Some((r, g, b)) = hex_to_rgb(hex) {
+        if let Some((r, g, b)) = legacy_permissive_hex_to_rgb(hex) {
             self.on_rgb(r, g, b)
         } else {
             self.clear()

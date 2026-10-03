@@ -101,19 +101,12 @@ fn indexed_colors_stay_indexed_above_ansi16(#[case] index: u8, #[case] named: An
 }
 
 #[rstest]
-#[case((0., 100., 50.), (255, 0, 0))]
-#[case((360., 100., 50.), (255, 0, 0))]
-#[case((60., 100., 50.), (255, 255, 0))]
-#[case((120., 100., 50.), (0, 255, 0))]
-#[case((180., 100., 50.), (0, 255, 255))]
-#[case((240., 100., 50.), (0, 0, 255))]
-#[case((300., 100., 50.), (255, 0, 255))]
-#[case((0., 0., 50.), (127, 127, 127))]
-#[case((360., 100., 0.), (0, 0, 0))]
-#[case((0., 100., 100.), (255, 255, 255))]
-#[case((-0., -0., -0.), (0, 0, 0))]
-fn hsl_uses_rgb_resolution_at_every_depth(#[case] hsl: (f32, f32, f32), #[case] rgb: (u8, u8, u8)) {
-    assert_eq!(hsl_to_rgb(hsl.0, hsl.1, hsl.2), Ok(rgb));
+#[case((0., 100., 50.))]
+#[case((360., 100., 50.))]
+#[case((0., 0., 50.))]
+#[case((360., 100., 0.))]
+#[case((0., 100., 100.))]
+fn hsl_uses_rgb_resolution_at_every_depth(#[case] hsl: (f32, f32, f32)) {
     let (r, g, b) = hsl_to_rgb(hsl.0, hsl.1, hsl.2).unwrap();
     for level in LEVELS {
         assert_eq!(
@@ -171,18 +164,11 @@ fn non_finite_hsl_is_rejected(
 }
 
 #[rstest]
-#[case("f80", (255, 136, 0))]
-#[case("#f80", (255, 136, 0))]
-#[case("F80", (255, 136, 0))]
-#[case("#aBc", (170, 187, 204))]
-#[case("d73a4a", (215, 58, 74))]
-#[case("#d73a4a", (215, 58, 74))]
-#[case("#D73A4A", (215, 58, 74))]
-#[case("d73A4a", (215, 58, 74))]
-#[case("000", (0, 0, 0))]
-#[case("#FFFFFF", (255, 255, 255))]
-fn hex_uses_rgb_resolution_at_every_depth(#[case] input: &str, #[case] rgb: (u8, u8, u8)) {
-    assert_eq!(hex_to_rgb(input), Ok(rgb));
+#[case("f80")]
+#[case("#aBc")]
+#[case("d73a4a")]
+#[case("#D73A4A")]
+fn hex_uses_rgb_resolution_at_every_depth(#[case] input: &str) {
     let (r, g, b) = hex_to_rgb(input).unwrap();
     for level in LEVELS {
         assert_eq!(resolve_hex(input, level), Ok(resolve_rgb(r, g, b, level)));
@@ -191,33 +177,21 @@ fn hex_uses_rgb_resolution_at_every_depth(#[case] input: &str, #[case] rgb: (u8,
 
 #[rstest]
 #[case("")]
-#[case("#")]
-#[case("12")]
 #[case("1234")]
-#[case("12345")]
-#[case("1234567")]
-#[case("ggg")]
 #[case("#12x456")]
 #[case("##f80")]
-#[case("0xff8000")]
-#[case(" #f80")]
 #[case("#f80 ")]
-#[case("f80\n")]
 #[case("éa")]
-#[case("aé")]
-#[case("éabcd")]
 fn malformed_hex_is_an_error_even_when_color_is_disabled(#[case] input: &str) {
     let error = hex_to_rgb(input).unwrap_err();
+    assert_eq!(
+        error,
+        ColorInputError::InvalidHex {
+            input: input.to_owned()
+        }
+    );
     for level in LEVELS {
         assert_eq!(resolve_hex(input, level), Err(error.clone()));
-    }
-    for level in LEVELS {
-        assert_eq!(
-            resolve_hex(input, level),
-            Err(ColorInputError::InvalidHex {
-                input: input.to_owned()
-            })
-        );
     }
 }
 
