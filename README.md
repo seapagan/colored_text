@@ -12,13 +12,14 @@ Rust.
 - Simple method-call syntax for applying colors and styles
 - Support for basic colors, bright colors, and background colors
 - Text styling (bold, dim, italic, underline, inverse, strikethrough)
-- ANSI 256, RGB, and HEX color support for both text and background
+- ANSI 256, RGB, HSL, and hex color support for both text and background
 - Terminal color capability detection for no-color, ANSI 16, ANSI 256, and
   truecolor output
 - Optional color-depth override for applications that know their output target
 - Composed style chaining with predictable override behavior
 - Works with string literals, owned strings, and format macros
-- Zero dependencies
+- Zero runtime dependencies
+- Structured color resolution for custom renderers, TUIs, loggers, and adapters
 - Supports `NO_COLOR`, `FORCE_COLOR`, `CLICOLOR`, `CLICOLOR_FORCE`, `TERM`,
   `COLORTERM`, `CI`, `WT_SESSION`, `ConEmuANSI`, and `ANSICON`
 - Supports explicit runtime color modes: `Auto`, `Always`, and `Never`
@@ -34,8 +35,22 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-colored_text = "0.5.0"
+colored_text = "0.5.1"
 ```
+
+## Minimum Supported Rust Version
+
+The package/source MSRV is **Rust 1.70.0**, declared in `Cargo.toml`. Exact
+toolchain probes with a compatible lockfile proved that Rust 1.69.0 fails with
+`E0658` on production uses of `std::io::IsTerminal` and `Option::is_some_and`.
+Rust 1.70.0 passes library and example builds, documentation, and package
+verification, plus the complete repository gate for all targets/features,
+dev dependencies, tests, doctests, formatting, and Clippy. Cargo 1.70 generated
+the checked-in v3 lockfile without changing dependency versions.
+
+The MSRV represents consumer source compatibility. Dependency updates must
+preserve it or explicitly declare and document a policy change.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the verification commands.
 
 ## Compatibility with 0.4.1
 
@@ -82,6 +97,91 @@ println!("Hello, {}!", name.blue().bold());
 // Removing all styles
 println!("{}", "Back to plain text".red().bold().clear());
 ```
+
+## Renderer-neutral Color Resolution
+
+Use the public resolvers when a renderer needs color data instead of ANSI
+escape sequences. Determine a `ColorLevel` once, then supply it explicitly:
+
+```rust
+use colored_text::{resolve_rgb, ColorizeConfig, RenderTarget, ResolvedColor};
+
+let level = ColorizeConfig::color_level(RenderTarget::Stdout);
+match resolve_rgb(0xd7, 0x3a, 0x4a, level) {
+    Some(ResolvedColor::Named(color)) => {
+        // Map AnsiColor to the renderer's terminal palette entry.
+        println!("named palette entry: {color:?}");
+    }
+    Some(ResolvedColor::Ansi256(index)) => {
+        println!("indexed palette entry: {index}");
+    }
+    Some(ResolvedColor::Rgb(r, g, b)) => {
+        println!("RGB channels: {r}, {g}, {b}");
+    }
+    None => {
+        // Leave the renderer's color unset.
+    }
+}
+```
+
+`AnsiColor` exposes all 16 standard and bright terminal palette entries.
+Their visual appearance depends on the terminal theme. Named input preserves
+that identity at every enabled depth; indexed input stays indexed at both
+`Ansi256` and `TrueColor`. RGB input resolves to the nearest named/indexed
+color or exact RGB, according to the level. `NoColor` returns `None`.
+
+All supported input forms have public entry points:
+
+```rust
+use colored_text::{
+    resolve_named, resolve_ansi256, resolve_rgb, resolve_hsl, resolve_hex,
+    AnsiColor, ColorLevel,
+};
+
+fn main() -> Result<(), colored_text::ColorInputError> {
+    let level = ColorLevel::Ansi256; // Or use ColorizeConfig::color_level(target).
+    let named = resolve_named(AnsiColor::BrightRed, level);
+    let indexed = resolve_ansi256(196, level);
+    let rgb = resolve_rgb(215, 58, 74, level);
+    let hsl = resolve_hsl(0.0, 100.0, 50.0, level)?;
+    let hex = resolve_hex("#d73a4a", level)?;
+    Ok(())
+}
+```
+
+The public `hsl_to_rgb(h, s, l)` and `hex_to_rgb(input)` helpers return
+`Result<(u8, u8, u8), ColorInputError>` without requiring a terminal color level.
+They do not inspect configuration or the environment.
+
+`ColorInputError::InvalidHsl { component, value }` identifies the rejected
+`HslComponent::Hue`, `Saturation`, or `Lightness` and retains the `f32` value.
+`HslComponent` implements `Clone`, `Copy`, `Debug`, `Eq`, `PartialEq`, `Hash`,
+and `Display`. `ColorInputError` is non-exhaustive; downstream matches need a
+wildcard arm. `AnsiColor` (including `Hash`) and `ResolvedColor` remain
+exhaustive for custom renderers.
+
+```rust
+use colored_text::{hex_to_rgb, hsl_to_rgb};
+
+assert_eq!(hsl_to_rgb(360.0, 100.0, 50.0).unwrap(), (255, 0, 0));
+assert_eq!(hex_to_rgb("#aBc").unwrap(), (170, 187, 204));
+```
+
+`resolve_hsl` and `resolve_hex` delegate to these helpers before applying the
+same RGB degradation policy used by
+`StyledText`. HSL requires finite hue in `0..=360` degrees and finite saturation
+and lightness in `0..=100` percent; hue 360 equals 0. Channel conversion retains
+the existing truncation behavior. Hex accepts ASCII `RGB`, `#RGB`, `RRGGBB`, and
+`#RRGGBB`, case-insensitively, without whitespace or repeated prefixes.
+
+Invalid HSL/hex returns `ColorInputError` from public conversion/resolution
+functions, even at `NoColor`; valid resolver input with color disabled returns
+`Ok(None)`. The `.hsl()` / `.on_hsl()` and `.hex()` / `.on_hex()` styling methods
+use the same validated conversions and clear all styling on invalid input,
+returning plain unstyled text. Resolver functions do not read configuration or
+the environment.
+They return structured data for any downstream renderer, with no renderer
+framework dependency.
 
 ## Available Methods
 
@@ -177,10 +277,14 @@ They use the standard bright background SGR codes `100-107`.
 - Attempting to use RGB values > 255 will result in a compile error
 - ANSI 256-color indexes must be in range 0-255 (enforced at compile time via
   `u8` type)
-- Hex color codes can be provided with or without the '#' prefix in either
-  3-character shorthand or 6-character full form
-- Invalid hex codes (wrong length, invalid characters) will result in plain
-  unstyled text
+- HSL values must be finite, with hue in `0..=360` degrees and saturation and
+  lightness in `0..=100` percent; hue 360 equals 0
+- Hex accepts ASCII `RGB`, `#RGB`, `RRGGBB`, and `#RRGGBB`, case-insensitively,
+  with exactly zero or one leading `#` and no whitespace
+- Invalid HSL or hex passed to styling methods clears all styling and returns
+  plain unstyled text, including for non-ASCII hex input
+- Public conversion/resolution functions return `ColorInputError` on invalid
+  HSL or hex input
 - All color methods are guaranteed to return a valid string, never panicking
 
 ```rust

@@ -1,7 +1,8 @@
 use std::fmt::{self, Display};
 
-use crate::color::{hex_to_rgb, hsl_to_rgb, ColorSpec, NamedColor};
+use crate::color::{AnsiColor, ColorSpec};
 use crate::config::{color_level, color_level_for, RenderTarget};
+use crate::resolution::{hex_to_rgb, hsl_to_rgb};
 use crate::terminal::ColorLevel;
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -121,82 +122,82 @@ impl StyledText {
 
     /// Apply the standard red foreground color.
     pub fn red(self) -> Self {
-        self.with_foreground(ColorSpec::Named(NamedColor::Red))
+        self.with_foreground(ColorSpec::Named(AnsiColor::Red))
     }
 
     /// Apply the standard green foreground color.
     pub fn green(self) -> Self {
-        self.with_foreground(ColorSpec::Named(NamedColor::Green))
+        self.with_foreground(ColorSpec::Named(AnsiColor::Green))
     }
 
     /// Apply the standard yellow foreground color.
     pub fn yellow(self) -> Self {
-        self.with_foreground(ColorSpec::Named(NamedColor::Yellow))
+        self.with_foreground(ColorSpec::Named(AnsiColor::Yellow))
     }
 
     /// Apply the standard blue foreground color.
     pub fn blue(self) -> Self {
-        self.with_foreground(ColorSpec::Named(NamedColor::Blue))
+        self.with_foreground(ColorSpec::Named(AnsiColor::Blue))
     }
 
     /// Apply the standard magenta foreground color.
     pub fn magenta(self) -> Self {
-        self.with_foreground(ColorSpec::Named(NamedColor::Magenta))
+        self.with_foreground(ColorSpec::Named(AnsiColor::Magenta))
     }
 
     /// Apply the standard cyan foreground color.
     pub fn cyan(self) -> Self {
-        self.with_foreground(ColorSpec::Named(NamedColor::Cyan))
+        self.with_foreground(ColorSpec::Named(AnsiColor::Cyan))
     }
 
     /// Apply the standard white foreground color.
     pub fn white(self) -> Self {
-        self.with_foreground(ColorSpec::Named(NamedColor::White))
+        self.with_foreground(ColorSpec::Named(AnsiColor::White))
     }
 
     /// Apply the standard black foreground color.
     pub fn black(self) -> Self {
-        self.with_foreground(ColorSpec::Named(NamedColor::Black))
+        self.with_foreground(ColorSpec::Named(AnsiColor::Black))
     }
 
     /// Apply the bright black foreground color.
     pub fn bright_black(self) -> Self {
-        self.with_foreground(ColorSpec::Named(NamedColor::BrightBlack))
+        self.with_foreground(ColorSpec::Named(AnsiColor::BrightBlack))
     }
 
     /// Apply the bright red foreground color.
     pub fn bright_red(self) -> Self {
-        self.with_foreground(ColorSpec::Named(NamedColor::BrightRed))
+        self.with_foreground(ColorSpec::Named(AnsiColor::BrightRed))
     }
 
     /// Apply the bright green foreground color.
     pub fn bright_green(self) -> Self {
-        self.with_foreground(ColorSpec::Named(NamedColor::BrightGreen))
+        self.with_foreground(ColorSpec::Named(AnsiColor::BrightGreen))
     }
 
     /// Apply the bright yellow foreground color.
     pub fn bright_yellow(self) -> Self {
-        self.with_foreground(ColorSpec::Named(NamedColor::BrightYellow))
+        self.with_foreground(ColorSpec::Named(AnsiColor::BrightYellow))
     }
 
     /// Apply the bright blue foreground color.
     pub fn bright_blue(self) -> Self {
-        self.with_foreground(ColorSpec::Named(NamedColor::BrightBlue))
+        self.with_foreground(ColorSpec::Named(AnsiColor::BrightBlue))
     }
 
     /// Apply the bright magenta foreground color.
     pub fn bright_magenta(self) -> Self {
-        self.with_foreground(ColorSpec::Named(NamedColor::BrightMagenta))
+        self.with_foreground(ColorSpec::Named(AnsiColor::BrightMagenta))
     }
 
     /// Apply the bright cyan foreground color.
     pub fn bright_cyan(self) -> Self {
-        self.with_foreground(ColorSpec::Named(NamedColor::BrightCyan))
+        self.with_foreground(ColorSpec::Named(AnsiColor::BrightCyan))
     }
 
     /// Apply the bright white foreground color.
     pub fn bright_white(self) -> Self {
-        self.with_foreground(ColorSpec::Named(NamedColor::BrightWhite))
+        self.with_foreground(ColorSpec::Named(AnsiColor::BrightWhite))
     }
 
     /// Add bold text styling.
@@ -231,82 +232,82 @@ impl StyledText {
 
     /// Apply the standard red background color.
     pub fn on_red(self) -> Self {
-        self.with_background(ColorSpec::Named(NamedColor::Red))
+        self.with_background(ColorSpec::Named(AnsiColor::Red))
     }
 
     /// Apply the standard green background color.
     pub fn on_green(self) -> Self {
-        self.with_background(ColorSpec::Named(NamedColor::Green))
+        self.with_background(ColorSpec::Named(AnsiColor::Green))
     }
 
     /// Apply the standard yellow background color.
     pub fn on_yellow(self) -> Self {
-        self.with_background(ColorSpec::Named(NamedColor::Yellow))
+        self.with_background(ColorSpec::Named(AnsiColor::Yellow))
     }
 
     /// Apply the standard blue background color.
     pub fn on_blue(self) -> Self {
-        self.with_background(ColorSpec::Named(NamedColor::Blue))
+        self.with_background(ColorSpec::Named(AnsiColor::Blue))
     }
 
     /// Apply the standard magenta background color.
     pub fn on_magenta(self) -> Self {
-        self.with_background(ColorSpec::Named(NamedColor::Magenta))
+        self.with_background(ColorSpec::Named(AnsiColor::Magenta))
     }
 
     /// Apply the standard cyan background color.
     pub fn on_cyan(self) -> Self {
-        self.with_background(ColorSpec::Named(NamedColor::Cyan))
+        self.with_background(ColorSpec::Named(AnsiColor::Cyan))
     }
 
     /// Apply the standard white background color.
     pub fn on_white(self) -> Self {
-        self.with_background(ColorSpec::Named(NamedColor::White))
+        self.with_background(ColorSpec::Named(AnsiColor::White))
     }
 
     /// Apply the standard black background color.
     pub fn on_black(self) -> Self {
-        self.with_background(ColorSpec::Named(NamedColor::Black))
+        self.with_background(ColorSpec::Named(AnsiColor::Black))
     }
 
     /// Apply the bright black background color.
     pub fn on_bright_black(self) -> Self {
-        self.with_background(ColorSpec::Named(NamedColor::BrightBlack))
+        self.with_background(ColorSpec::Named(AnsiColor::BrightBlack))
     }
 
     /// Apply the bright red background color.
     pub fn on_bright_red(self) -> Self {
-        self.with_background(ColorSpec::Named(NamedColor::BrightRed))
+        self.with_background(ColorSpec::Named(AnsiColor::BrightRed))
     }
 
     /// Apply the bright green background color.
     pub fn on_bright_green(self) -> Self {
-        self.with_background(ColorSpec::Named(NamedColor::BrightGreen))
+        self.with_background(ColorSpec::Named(AnsiColor::BrightGreen))
     }
 
     /// Apply the bright yellow background color.
     pub fn on_bright_yellow(self) -> Self {
-        self.with_background(ColorSpec::Named(NamedColor::BrightYellow))
+        self.with_background(ColorSpec::Named(AnsiColor::BrightYellow))
     }
 
     /// Apply the bright blue background color.
     pub fn on_bright_blue(self) -> Self {
-        self.with_background(ColorSpec::Named(NamedColor::BrightBlue))
+        self.with_background(ColorSpec::Named(AnsiColor::BrightBlue))
     }
 
     /// Apply the bright magenta background color.
     pub fn on_bright_magenta(self) -> Self {
-        self.with_background(ColorSpec::Named(NamedColor::BrightMagenta))
+        self.with_background(ColorSpec::Named(AnsiColor::BrightMagenta))
     }
 
     /// Apply the bright cyan background color.
     pub fn on_bright_cyan(self) -> Self {
-        self.with_background(ColorSpec::Named(NamedColor::BrightCyan))
+        self.with_background(ColorSpec::Named(AnsiColor::BrightCyan))
     }
 
     /// Apply the bright white background color.
     pub fn on_bright_white(self) -> Self {
-        self.with_background(ColorSpec::Named(NamedColor::BrightWhite))
+        self.with_background(ColorSpec::Named(AnsiColor::BrightWhite))
     }
 
     /// Apply an ANSI 256-color foreground.
@@ -340,22 +341,34 @@ impl StyledText {
     }
 
     /// Convert HSL to RGB and apply it to the foreground color.
+    ///
+    /// Uses [`hsl_to_rgb`]: all values must be finite, with hue in `0..=360`
+    /// degrees and saturation/lightness in `0..=100` percent. Hue 360 equals 0.
+    /// Invalid input clears all styling.
     pub fn hsl(self, h: f32, s: f32, l: f32) -> Self {
-        let (r, g, b) = hsl_to_rgb(h, s, l);
-        self.rgb(r, g, b)
+        match hsl_to_rgb(h, s, l) {
+            Ok((r, g, b)) => self.rgb(r, g, b),
+            Err(_) => self.clear(),
+        }
     }
 
     /// Convert HSL to RGB and apply it to the background color.
+    ///
+    /// Uses the same validation and plain-text fallback as [`Self::hsl`].
     pub fn on_hsl(self, h: f32, s: f32, l: f32) -> Self {
-        let (r, g, b) = hsl_to_rgb(h, s, l);
-        self.on_rgb(r, g, b)
+        match hsl_to_rgb(h, s, l) {
+            Ok((r, g, b)) => self.on_rgb(r, g, b),
+            Err(_) => self.clear(),
+        }
     }
 
     /// Apply a hex foreground color.
     ///
+    /// Uses [`hex_to_rgb`]: ASCII `RGB` or `RRGGBB`, case-insensitively,
+    /// with zero or one leading `#` and no whitespace.
     /// Invalid input clears all styling and returns plain text.
     pub fn hex(self, hex: &str) -> Self {
-        if let Some((r, g, b)) = hex_to_rgb(hex) {
+        if let Ok((r, g, b)) = hex_to_rgb(hex) {
             self.rgb(r, g, b)
         } else {
             self.clear()
@@ -364,9 +377,10 @@ impl StyledText {
 
     /// Apply a hex background color.
     ///
+    /// Uses the same validation as [`Self::hex`].
     /// Invalid input clears all styling and returns plain text.
     pub fn on_hex(self, hex: &str) -> Self {
-        if let Some((r, g, b)) = hex_to_rgb(hex) {
+        if let Ok((r, g, b)) = hex_to_rgb(hex) {
             self.on_rgb(r, g, b)
         } else {
             self.clear()
@@ -513,12 +527,20 @@ pub trait Colorize {
     /// Apply a true-color RGB background.
     fn on_rgb(&self, r: u8, g: u8, b: u8) -> StyledText;
     /// Convert HSL to RGB and apply it to the foreground.
+    ///
+    /// See [`StyledText::hsl`] for valid ranges. Invalid input clears all styling.
     fn hsl(&self, h: f32, s: f32, l: f32) -> StyledText;
     /// Convert HSL to RGB and apply it to the background.
+    ///
+    /// See [`StyledText::on_hsl`] for valid ranges. Invalid input clears all styling.
     fn on_hsl(&self, h: f32, s: f32, l: f32) -> StyledText;
     /// Apply a hex foreground color, or plain text on invalid input.
+    ///
+    /// See [`StyledText::hex`] for the accepted grammar.
     fn hex(&self, hex: &str) -> StyledText;
     /// Apply a hex background color, or plain text on invalid input.
+    ///
+    /// See [`StyledText::on_hex`] for the accepted grammar.
     fn on_hex(&self, hex: &str) -> StyledText;
     /// Remove all styling and return plain text.
     fn clear(&self) -> StyledText;

@@ -1,14 +1,136 @@
+[config]
+skip_core_tasks = true
+
+[tasks.format]
+description = "Check Rust formatting"
+command = "cargo"
+args = ["fmt", "--all", "--", "--check"]
+
+[tasks.check]
+description = "Check every target and feature with the lockfile"
+command = "cargo"
+args = ["check", "--all-targets", "--all-features", "--locked"]
+
+[tasks.clippy]
+description = "Run Clippy with warnings denied"
+command = "cargo"
+args = ["clippy", "--all-targets", "--all-features", "--locked", "--", "-D", "warnings"]
+
 [tasks.test]
-# this needs the crates 'nextest' and 'cargo-llvm-cov' installed locally
+description = "Run unit and integration tests with nextest"
+command = "cargo"
+args = ["nextest", "run", "--all-targets", "--all-features", "--locked"]
+
+[tasks.doctest]
+description = "Run rustdoc examples (nextest does not run doctests)"
+command = "cargo"
+args = ["test", "--doc", "--all-features", "--locked"]
+
+[tasks.doc]
+description = "Build documentation with warnings denied"
+env = { RUSTDOCFLAGS = "-D warnings" }
+command = "cargo"
+args = ["doc", "--no-deps", "--all-features", "--locked"]
+
+[tasks.build]
+description = "Build every target and feature"
+command = "cargo"
+args = ["build", "--all-targets", "--all-features", "--locked"]
+
+[tasks.package]
+description = "Verify packaging from the clean committed tree"
+command = "cargo"
+args = ["package", "--locked"]
+
+[tasks.msrv-version]
+description = "Read and validate the exact package MSRV from Cargo.toml"
+script_runner = "@duckscript"
+script = '''
+metadata_output = exec cargo metadata --manifest-path Cargo.toml --no-deps --format-version 1 --locked
+assert_eq ${metadata_output.code} 0 "Cannot determine package.rust-version from Cargo.toml: ${metadata_output.stderr}"
+metadata = json_parse ${metadata_output.stdout}
+assert_eq ${metadata.packages.length} 1 "Expected one package in Cargo.toml to determine the MSRV"
+msrv = set ${metadata.packages[0].rust_version}
+missing = is_empty ${msrv}
+assert_false ${missing} "Cargo.toml package.rust-version must declare an exact stable major.minor.patch version"
+echo Validating Cargo.toml package.rust-version: ${msrv}
+version = semver_parse ${msrv}
+exact_version = set "${version.major}.${version.minor}.${version.patch}"
+assert_eq ${msrv} ${exact_version} "Cargo.toml package.rust-version must declare an exact stable major.minor.patch version"
+set_env COLORED_TEXT_MSRV ${msrv}
+echo Manifest MSRV: ${msrv}
+output_file = get_env GITHUB_OUTPUT
+output_missing = is_empty ${output_file}
+if not ${output_missing}
+    appendfile ${output_file} "version=${msrv}\n"
+end
+'''
+
+[tasks.msrv]
+description = "Verify every supported path with the exact manifest-declared toolchain"
+dependencies = ["msrv-version"]
+env = { RUSTDOCFLAGS = "-D warnings" }
+script_runner = "@duckscript"
+script = '''
+msrv = get_env COLORED_TEXT_MSRV
+exec --fail-on-error cargo +${msrv} fmt --all -- --check
+exec --fail-on-error cargo +${msrv} check --all-targets --all-features --locked
+exec --fail-on-error cargo +${msrv} clippy --all-targets --all-features --locked -- -D warnings
+exec --fail-on-error cargo +${msrv} test --all-targets --all-features --locked
+exec --fail-on-error cargo +${msrv} test --doc --all-features --locked
+exec --fail-on-error cargo +${msrv} doc --no-deps --all-features --locked
+exec --fail-on-error cargo +${msrv} build --all-targets --all-features --locked
+exec --fail-on-error cargo +${msrv} package --locked
+'''
+
+[tasks.audit]
+description = "Audit locked dependencies for known vulnerabilities"
+command = "cargo"
+args = ["audit"]
+
+[tasks.deny]
+description = "Check dependency advisories, licenses, bans, and sources"
+command = "cargo"
+args = ["deny", "--locked", "check"]
+
+[tasks.actions-lint]
+description = "Validate workflow syntax"
+command = "actionlint"
+
+[tasks.zizmor]
+description = "Audit workflow security with the pedantic persona"
+command = "zizmor"
+args = ["--persona=pedantic", ".github/workflows"]
+
+[tasks.prepare-coverage]
+private = true
+script_runner = "@duckscript"
+script = ["mkdir target/llvm-cov"]
+
+[tasks.coverage]
+description = "Write remapped LCOV and enforce the measured 100% line baseline"
+dependencies = ["prepare-coverage"]
 command = "cargo"
 args = [
-  "llvm-cov",
-  "nextest",
-  "--no-fail-fast",
-  "--lcov",
-  "--output-path=target/llvm-cov/coverage.lcov",
+    "llvm-cov", "nextest", "--all-targets", "--all-features", "--locked",
+    "--no-fail-fast", "--remap-path-prefix", "--fail-under-lines=100", "--fail-under-functions=100", "--fail-under-regions=99.64",
+    "--lcov", "--output-path=target/llvm-cov/coverage.lcov",
+]
+
+[tasks.coverage-html]
+description = "Generate a local HTML coverage report"
+command = "cargo"
+args = [
+    "llvm-cov", "nextest", "--all-targets", "--all-features", "--locked",
+    "--no-fail-fast", "--remap-path-prefix", "--html",
 ]
 
 [tasks.test-html]
-command = "cargo"
-args = ["llvm-cov", "nextest", "--no-fail-fast", "--html"]
+alias = "coverage-html"
+
+[tasks.verify]
+description = "Run the complete local library verification gate"
+dependencies = [
+    "format", "check", "clippy", "test", "doctest", "doc", "build", "package",
+    "msrv", "audit", "deny", "actions-lint", "zizmor", "coverage",
+]

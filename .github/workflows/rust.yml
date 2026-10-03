@@ -1,22 +1,136 @@
-name: Tests
+name: Rust CI
 
 on:
   push:
-    branches: ["main"]
+    branches: [main]
   pull_request:
-    branches: ["main"]
+    branches: [main]
   workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
 
 env:
   CARGO_TERM_COLOR: always
+  RUST_VERSION: 1.99.0
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-
+  library:
+    name: Library (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15, windows-2025]
+    runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - name: Build
-        run: cargo build
-      - name: Run tests
-        run: cargo test
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install current stable Rust
+        uses: seapagan/setup-rust@a91f5a34c552642ece0e8cef8b5e9226f41a3c0b # v1.0.0
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: rustfmt clippy
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          prefix-key: v1-${{ runner.os }}-rust-${{ env.RUST_VERSION }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Install test tools
+        uses: taiki-e/install-action@83ac0ad63c0167e6f06796fab0fce28db1bf3db0 # v2.87.22
+        with:
+          tool: cargo-make@0.37.24, cargo-nextest@0.9.146
+      - name: Verify the library
+        run: |
+          cargo make format
+          cargo make check
+          cargo make clippy
+          cargo make test
+          cargo make doctest
+          cargo make doc
+          cargo make build
+          cargo make package
+
+  msrv:
+    name: Exact declared MSRV
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install bootstrap Rust for manifest discovery
+        uses: seapagan/setup-rust@a91f5a34c552642ece0e8cef8b5e9226f41a3c0b # v1.0.0
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+      - name: Install task runner
+        uses: taiki-e/install-action@83ac0ad63c0167e6f06796fab0fce28db1bf3db0 # v2.87.22
+        with:
+          tool: cargo-make@0.37.24
+      - name: Read rust-version from Cargo.toml
+        id: msrv
+        run: cargo make msrv-version
+      - name: Install declared Rust
+        uses: seapagan/setup-rust@a91f5a34c552642ece0e8cef8b5e9226f41a3c0b # v1.0.0
+        with:
+          toolchain: ${{ steps.msrv.outputs.version }}
+          components: rustfmt clippy
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          prefix-key: v1-${{ runner.os }}-rust-${{ steps.msrv.outputs.version }}
+          shared-key: msrv
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Verify the full MSRV compiler gate
+        run: cargo make msrv
+
+  quality:
+    name: Dependency policy, workflows, and coverage
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install current stable Rust
+        uses: seapagan/setup-rust@a91f5a34c552642ece0e8cef8b5e9226f41a3c0b # v1.0.0
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: llvm-tools-preview
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          prefix-key: v1-${{ runner.os }}-rust-${{ env.RUST_VERSION }}
+          shared-key: quality
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Install quality tools
+        uses: taiki-e/install-action@83ac0ad63c0167e6f06796fab0fce28db1bf3db0 # v2.87.22
+        with:
+          tool: cargo-make@0.37.24, cargo-nextest@0.9.146, cargo-llvm-cov@0.9.1, cargo-audit@0.22.2, cargo-deny@0.20.2
+      - name: Install actionlint
+        env:
+          ACTIONLINT_VERSION: 1.7.12
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          archive="$RUNNER_TEMP/actionlint.tar.gz"
+          curl --fail --silent --show-error --location \
+            "https://github.com/rhysd/actionlint/releases/download/v$ACTIONLINT_VERSION/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
+            --output "$archive"
+          printf '%s  %s\n' "$ACTIONLINT_SHA256" "$archive" | sha256sum --check
+          tar -xzf "$archive" -C "$RUNNER_TEMP" actionlint
+          install -m 755 "$RUNNER_TEMP/actionlint" "$HOME/.cargo/bin/actionlint"
+      - name: Verify dependencies, workflows, and coverage
+        run: |
+          cargo make audit
+          cargo make deny
+          cargo make actions-lint
+          cargo make coverage

@@ -45,6 +45,7 @@
 //! - Text styles (bold, dim, italic, underline)
 //! - ANSI 256-color foreground and background support
 //! - RGB, HSL, and Hex color support
+//! - Structured color resolution for custom renderers and TUIs
 //! - Terminal color capability detection
 //! - RGB, HSL, and Hex degradation when truecolor is unavailable
 //! - Composed style chaining
@@ -59,10 +60,14 @@
 //!   via `u8` type)
 //! - `.color256(index)` and `.on_color256(index)` are aliases for
 //!   `.ansi256(index)` and `.on_ansi256(index)`
-//! - Hex color codes can be provided with or without the `#` prefix in 3-digit
-//!   shorthand or 6-digit full form
-//! - Invalid hex codes (wrong length or invalid characters) return plain
-//!   unstyled text
+//! - HSL values must be finite, with hue in `0..=360` degrees and saturation and
+//!   lightness in `0..=100` percent; hue 360 equals 0
+//! - Hex accepts ASCII `RGB`, `#RGB`, `RRGGBB`, and `#RRGGBB`, case-insensitively,
+//!   with zero or one leading `#` and no whitespace
+//! - Invalid HSL or hex passed to styling methods clears all styling and returns
+//!   plain unstyled text, including for non-ASCII hex input
+//! - Public conversion/resolution functions return [`ColorInputError`] on
+//!   invalid HSL or hex input
 //! - All color methods are guaranteed to return a valid string, never panicking
 //!
 //! ```rust
@@ -122,6 +127,44 @@
 //! println!("stdout color level: {:?}", caps.color_level);
 //! ```
 //!
+//! # Structured Color Resolution
+//!
+//! Custom renderers can use [`AnsiColor`], [`ResolvedColor`], and the public
+//! resolvers without constructing ANSI strings. Capability detection is separate:
+//!
+//! ```
+//! use colored_text::{ColorizeConfig, RenderTarget, ResolvedColor, resolve_rgb};
+//!
+//! let level = ColorizeConfig::color_level(RenderTarget::Stdout);
+//! match resolve_rgb(215, 58, 74, level) {
+//!     Some(ResolvedColor::Named(color)) => { /* map the terminal palette entry */ }
+//!     Some(ResolvedColor::Ansi256(index)) => { /* map the indexed color */ }
+//!     Some(ResolvedColor::Rgb(r, g, b)) => { /* use exact RGB channels */ }
+//!     None => { /* leave color unset */ }
+//! }
+//! ```
+//!
+//! [`resolve_named`] preserves terminal palette identity at every enabled depth.
+//! [`resolve_ansi256`] keeps indexed colors indexed above ANSI 16.
+//! [`resolve_rgb`] selects named/indexed/exact RGB according to [`ColorLevel`].
+//! [`hsl_to_rgb`] and [`hex_to_rgb`] validate and convert directly to RGB,
+//! independently of terminal depth. [`resolve_hsl`] and [`resolve_hex`] delegate
+//! to these helpers, then use the same RGB policy.
+//! Invalid input returns [`ColorInputError`], even at `NoColor`; valid input
+//! with color disabled returns `Ok(None)`. Styling methods use the same
+//! validated conversions, clearing all styling on invalid input.
+//!
+//! # Minimum Supported Rust Version
+//!
+//! The package/source MSRV is Rust 1.70.0. With a compatible lockfile, Rust
+//! 1.69.0 fails with `E0658` on production uses of `std::io::IsTerminal` and
+//! `Option::is_some_and`. Rust 1.70.0 passes library and example builds,
+//! documentation, packaging, and the full repository compiler gate, including
+//! all targets/features, dev dependencies, tests, doctests, formatting, and
+//! Clippy. Cargo 1.70 generated lockfile v3 without changing dependency versions.
+//! `Cargo.toml` is the source of truth; dependency updates must preserve the MSRV
+//! or explicitly document a support-policy change.
+//!
 //! # Compatibility with 0.4.1
 //!
 //! Since `0.4.1`, [`Colorize`] has gained required trait methods for bright
@@ -140,12 +183,18 @@
 
 mod color;
 mod config;
+mod resolution;
 mod style;
 mod terminal;
 
 #[cfg(test)]
 mod tests;
 
+pub use color::AnsiColor;
 pub use config::{ColorDepthMode, ColorMode, ColorizeConfig, RenderTarget};
+pub use resolution::{
+    hex_to_rgb, hsl_to_rgb, resolve_ansi256, resolve_hex, resolve_hsl, resolve_named, resolve_rgb,
+    ColorInputError, HslComponent, ResolvedColor,
+};
 pub use style::{Colorize, StyledText};
 pub use terminal::{ColorLevel, TerminalCapabilities};
