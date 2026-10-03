@@ -1,3 +1,4 @@
+use crate::resolution::ResolvedColor;
 use crate::terminal::ColorLevel;
 
 const ANSI256_STEPS: [u8; 6] = [0, 95, 135, 175, 215, 255];
@@ -21,23 +22,23 @@ const ANSI16_RGB: [(u8, u8, u8); 16] = [
     (255, 255, 255),
 ];
 
-const NAMED_COLORS: [NamedColor; 16] = [
-    NamedColor::Black,
-    NamedColor::Red,
-    NamedColor::Green,
-    NamedColor::Yellow,
-    NamedColor::Blue,
-    NamedColor::Magenta,
-    NamedColor::Cyan,
-    NamedColor::White,
-    NamedColor::BrightBlack,
-    NamedColor::BrightRed,
-    NamedColor::BrightGreen,
-    NamedColor::BrightYellow,
-    NamedColor::BrightBlue,
-    NamedColor::BrightMagenta,
-    NamedColor::BrightCyan,
-    NamedColor::BrightWhite,
+const NAMED_COLORS: [AnsiColor; 16] = [
+    AnsiColor::Black,
+    AnsiColor::Red,
+    AnsiColor::Green,
+    AnsiColor::Yellow,
+    AnsiColor::Blue,
+    AnsiColor::Magenta,
+    AnsiColor::Cyan,
+    AnsiColor::White,
+    AnsiColor::BrightBlack,
+    AnsiColor::BrightRed,
+    AnsiColor::BrightGreen,
+    AnsiColor::BrightYellow,
+    AnsiColor::BrightBlue,
+    AnsiColor::BrightMagenta,
+    AnsiColor::BrightCyan,
+    AnsiColor::BrightWhite,
 ];
 
 /// Convert HSL color values to RGB.
@@ -92,27 +93,47 @@ pub(crate) fn hex_to_rgb(hex: &str) -> Option<(u8, u8, u8)> {
     Some((r, g, b))
 }
 
+/// The standard 16 terminal palette colors.
+///
+/// Their appearance depends on the terminal theme. Bright variants select
+/// distinct palette entries, but some themes display them similarly.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum NamedColor {
+pub enum AnsiColor {
+    /// Standard black terminal palette entry.
     Black,
+    /// Standard red terminal palette entry.
     Red,
+    /// Standard green terminal palette entry.
     Green,
+    /// Standard yellow terminal palette entry.
     Yellow,
+    /// Standard blue terminal palette entry.
     Blue,
+    /// Standard magenta terminal palette entry.
     Magenta,
+    /// Standard cyan terminal palette entry.
     Cyan,
+    /// Standard white terminal palette entry.
     White,
+    /// Bright black terminal palette entry.
     BrightBlack,
+    /// Bright red terminal palette entry.
     BrightRed,
+    /// Bright green terminal palette entry.
     BrightGreen,
+    /// Bright yellow terminal palette entry.
     BrightYellow,
+    /// Bright blue terminal palette entry.
     BrightBlue,
+    /// Bright magenta terminal palette entry.
     BrightMagenta,
+    /// Bright cyan terminal palette entry.
     BrightCyan,
+    /// Bright white terminal palette entry.
     BrightWhite,
 }
 
-impl NamedColor {
+impl AnsiColor {
     pub(crate) fn foreground_code(self) -> String {
         self.foreground_code_value().to_string()
     }
@@ -145,7 +166,7 @@ impl NamedColor {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum ColorSpec {
-    Named(NamedColor),
+    Named(AnsiColor),
     Ansi256(u8),
     Rgb(u8, u8, u8),
 }
@@ -159,32 +180,34 @@ impl ColorSpec {
         self.code(level, ColorPosition::Background)
     }
 
-    fn code(&self, level: ColorLevel, position: ColorPosition) -> Option<String> {
+    pub(crate) fn resolve(&self, level: ColorLevel) -> Option<ResolvedColor> {
         match (level, self) {
             (ColorLevel::NoColor, _) => None,
-            (_, Self::Named(color)) => Some(position.named_code(*color)),
+            (_, Self::Named(color)) => Some(ResolvedColor::Named(*color)),
             (ColorLevel::Ansi16, Self::Ansi256(index)) => {
-                Some(position.named_code(ansi256_to_named_color(*index)))
+                Some(ResolvedColor::Named(ansi256_to_named_color(*index)))
             }
             (ColorLevel::Ansi16, Self::Rgb(r, g, b)) => {
-                Some(position.named_code(rgb_to_named_color(*r, *g, *b)))
+                Some(ResolvedColor::Named(rgb_to_named_color(*r, *g, *b)))
             }
             (ColorLevel::Ansi256 | ColorLevel::TrueColor, Self::Ansi256(index)) => {
-                Some(format!("{};5;{index}", position.extended_prefix()))
+                Some(ResolvedColor::Ansi256(*index))
             }
-            (ColorLevel::Ansi256, Self::Rgb(r, g, b)) => Some(format!(
-                "{};5;{}",
-                position.extended_prefix(),
-                rgb_to_ansi256(*r, *g, *b)
-            )),
-            (ColorLevel::TrueColor, Self::Rgb(r, g, b)) => Some(format!(
-                "{};2;{};{};{}",
-                position.extended_prefix(),
-                r,
-                g,
-                b
-            )),
+            (ColorLevel::Ansi256, Self::Rgb(r, g, b)) => {
+                Some(ResolvedColor::Ansi256(rgb_to_ansi256(*r, *g, *b)))
+            }
+            (ColorLevel::TrueColor, Self::Rgb(r, g, b)) => Some(ResolvedColor::Rgb(*r, *g, *b)),
         }
+    }
+
+    fn code(&self, level: ColorLevel, position: ColorPosition) -> Option<String> {
+        self.resolve(level).map(|color| match color {
+            ResolvedColor::Named(color) => position.named_code(color),
+            ResolvedColor::Ansi256(index) => format!("{};5;{index}", position.extended_prefix()),
+            ResolvedColor::Rgb(r, g, b) => {
+                format!("{};2;{r};{g};{b}", position.extended_prefix())
+            }
+        })
     }
 }
 
@@ -195,7 +218,7 @@ enum ColorPosition {
 }
 
 impl ColorPosition {
-    fn named_code(self, color: NamedColor) -> String {
+    fn named_code(self, color: AnsiColor) -> String {
         match self {
             Self::Foreground => color.foreground_code(),
             Self::Background => color.background_code(),
@@ -281,7 +304,7 @@ fn rgb_to_ansi256_gray(r: u8, g: u8, b: u8) -> u8 {
     232 + ramp_index as u8
 }
 
-pub(crate) fn rgb_to_named_color(r: u8, g: u8, b: u8) -> NamedColor {
+pub(crate) fn rgb_to_named_color(r: u8, g: u8, b: u8) -> AnsiColor {
     let target = (r, g, b);
     let (best, _) = nearest_by_distance(named_color_candidates(), |candidate| {
         distance_squared(target, candidate.1)
@@ -289,12 +312,12 @@ pub(crate) fn rgb_to_named_color(r: u8, g: u8, b: u8) -> NamedColor {
     best
 }
 
-pub(crate) fn ansi256_to_named_color(index: u8) -> NamedColor {
+pub(crate) fn ansi256_to_named_color(index: u8) -> AnsiColor {
     let (r, g, b) = ansi256_to_rgb(index);
     rgb_to_named_color(r, g, b)
 }
 
-fn named_color_candidates() -> impl Iterator<Item = (NamedColor, (u8, u8, u8))> {
+fn named_color_candidates() -> impl Iterator<Item = (AnsiColor, (u8, u8, u8))> {
     NAMED_COLORS.into_iter().zip(ANSI16_RGB)
 }
 

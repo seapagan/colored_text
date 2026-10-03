@@ -140,12 +140,18 @@
 
 mod color;
 mod config;
+mod resolution;
 mod style;
 mod terminal;
 
 #[cfg(test)]
 mod tests;
 
+pub use color::AnsiColor;
 pub use config::{ColorDepthMode, ColorMode, ColorizeConfig, RenderTarget};
+pub use resolution::{
+    resolve_ansi256, resolve_hex, resolve_hsl, resolve_named, resolve_rgb, ColorInputError,
+    ResolvedColor,
+};
 pub use style::{Colorize, StyledText};
 pub use terminal::{ColorLevel, TerminalCapabilities};

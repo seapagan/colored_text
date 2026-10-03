@@ -1,6 +1,6 @@
 use crate::color::{
-    ansi256_to_named_color, ansi256_to_rgb, rgb_to_ansi256, rgb_to_named_color, ColorSpec,
-    NamedColor,
+    ansi256_to_named_color, ansi256_to_rgb, rgb_to_ansi256, rgb_to_named_color, AnsiColor,
+    ColorSpec,
 };
 use crate::config::{
     get_stderr_terminal_override_for_tests, get_terminal_override_for_tests,
@@ -1084,11 +1084,11 @@ fn test_ansi256_background_degrades_by_color_level(
 #[test]
 fn test_color_specs_return_none_without_color_support() {
     assert_eq!(
-        ColorSpec::Named(NamedColor::Red).foreground_code(ColorLevel::NoColor),
+        ColorSpec::Named(AnsiColor::Red).foreground_code(ColorLevel::NoColor),
         None
     );
     assert_eq!(
-        ColorSpec::Named(NamedColor::Red).background_code(ColorLevel::NoColor),
+        ColorSpec::Named(AnsiColor::Red).background_code(ColorLevel::NoColor),
         None
     );
 }
@@ -1170,26 +1170,26 @@ fn test_rgb_to_ansi256_known_values(#[case] rgb: (u8, u8, u8), #[case] expected:
 }
 
 #[rstest]
-#[case((255, 0, 0), NamedColor::BrightRed)]
-#[case((0, 0, 128), NamedColor::Blue)]
-#[case((128, 128, 128), NamedColor::BrightBlack)]
-#[case((255, 255, 255), NamedColor::BrightWhite)]
-#[case((255, 128, 0), NamedColor::Yellow)]
-fn test_rgb_to_named_color_known_values(#[case] rgb: (u8, u8, u8), #[case] expected: NamedColor) {
+#[case((255, 0, 0), AnsiColor::BrightRed)]
+#[case((0, 0, 128), AnsiColor::Blue)]
+#[case((128, 128, 128), AnsiColor::BrightBlack)]
+#[case((255, 255, 255), AnsiColor::BrightWhite)]
+#[case((255, 128, 0), AnsiColor::Yellow)]
+fn test_rgb_to_named_color_known_values(#[case] rgb: (u8, u8, u8), #[case] expected: AnsiColor) {
     assert_eq!(rgb_to_named_color(rgb.0, rgb.1, rgb.2), expected);
 }
 
 #[test]
 fn test_rgb_to_named_color_ties_use_palette_order() {
-    assert_eq!(rgb_to_named_color(64, 64, 64), NamedColor::Black);
+    assert_eq!(rgb_to_named_color(64, 64, 64), AnsiColor::Black);
 }
 
 #[rstest]
-#[case(8, NamedColor::BrightBlack)]
-#[case(12, NamedColor::BrightBlue)]
-#[case(208, NamedColor::BrightYellow)]
-#[case(236, NamedColor::Black)]
-fn test_ansi256_to_named_color_known_values(#[case] index: u8, #[case] expected: NamedColor) {
+#[case(8, AnsiColor::BrightBlack)]
+#[case(12, AnsiColor::BrightBlue)]
+#[case(208, AnsiColor::BrightYellow)]
+#[case(236, AnsiColor::Black)]
+fn test_ansi256_to_named_color_known_values(#[case] index: u8, #[case] expected: AnsiColor) {
     assert_eq!(ansi256_to_named_color(index), expected);
 }
 
@@ -1215,15 +1215,15 @@ fn test_raw_colorize_codes_still_render() {
 }
 
 #[rstest]
-#[case(NamedColor::BrightBlack, "100")]
-#[case(NamedColor::BrightRed, "101")]
-#[case(NamedColor::BrightGreen, "102")]
-#[case(NamedColor::BrightYellow, "103")]
-#[case(NamedColor::BrightBlue, "104")]
-#[case(NamedColor::BrightMagenta, "105")]
-#[case(NamedColor::BrightCyan, "106")]
-#[case(NamedColor::BrightWhite, "107")]
-fn test_bright_background_color_codes(#[case] color: NamedColor, #[case] expected: &str) {
+#[case(AnsiColor::BrightBlack, "100")]
+#[case(AnsiColor::BrightRed, "101")]
+#[case(AnsiColor::BrightGreen, "102")]
+#[case(AnsiColor::BrightYellow, "103")]
+#[case(AnsiColor::BrightBlue, "104")]
+#[case(AnsiColor::BrightMagenta, "105")]
+#[case(AnsiColor::BrightCyan, "106")]
+#[case(AnsiColor::BrightWhite, "107")]
+fn test_bright_background_color_codes(#[case] color: AnsiColor, #[case] expected: &str) {
     assert_eq!(
         ColorSpec::Named(color).background_code(ColorLevel::Ansi16),
         Some(expected.to_string())
@@ -1262,4 +1262,222 @@ fn test_assert_rgb_approx_eq_large_diff() {
     let color1 = "test".rgb(255, 0, 0).to_string();
     let color2 = "test".rgb(252, 0, 0).to_string();
     assert_rgb_approx_eq(&color1, &color2);
+}
+
+#[rstest]
+#[case((0., 100., 50.), (255, 0, 0))]
+#[case((360., 100., 50.), (255, 0, 0))]
+#[case((-1., 100., 50.), (255, 0, 0))]
+#[case((361., 100., 50.), (255, 0, 4))]
+#[case((0., -1., 50.), (126, 128, 128))]
+#[case((0., 101., 50.), (255, 0, 0))]
+#[case((0., 100., -1.), (0, 0, 0))]
+#[case((0., 100., 101.), (255, 255, 255))]
+#[case((f32::NAN, 100., 50.), (255, 0, 0))]
+#[case((f32::INFINITY, 100., 50.), (255, 0, 0))]
+#[case((f32::NEG_INFINITY, 100., 50.), (255, 0, 0))]
+#[case((0., f32::NAN, 50.), (0, 0, 0))]
+#[case((0., f32::INFINITY, 50.), (0, 0, 0))]
+#[case((0., f32::NEG_INFINITY, 50.), (0, 0, 255))]
+#[case((0., 100., f32::NAN), (0, 0, 0))]
+#[case((0., 100., f32::INFINITY), (0, 0, 255))]
+#[case((0., 100., f32::NEG_INFINITY), (0, 0, 0))]
+fn legacy_hsl_edge_outputs_are_preserved(#[case] hsl: (f32, f32, f32), #[case] rgb: (u8, u8, u8)) {
+    let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+    let (h, s, l) = hsl;
+    let (r, g, b) = rgb;
+    assert_eq!(
+        "test".hsl(h, s, l).to_string(),
+        format!("\x1b[38;2;{r};{g};{b}mtest\x1b[0m")
+    );
+    assert_eq!(
+        "test".on_hsl(h, s, l).to_string(),
+        format!("\x1b[48;2;{r};{g};{b}mtest\x1b[0m")
+    );
+}
+
+#[test]
+fn legacy_hex_accepts_repeated_prefixes_and_clears_invalid_styles() {
+    let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+    assert_eq!(
+        "test".hex("##f80").to_string(),
+        "\x1b[38;2;255;136;0mtest\x1b[0m"
+    );
+    assert_eq!(
+        "test".on_hex("##f80").to_string(),
+        "\x1b[48;2;255;136;0mtest\x1b[0m"
+    );
+    assert_eq!(
+        "test".bold().red().on_blue().hex("bad input").to_string(),
+        "test"
+    );
+    assert_eq!(
+        "test"
+            .bold()
+            .red()
+            .on_blue()
+            .on_hex("bad input")
+            .to_string(),
+        "test"
+    );
+}
+
+const PALETTE_CODES: [(AnsiColor, u8); 16] = [
+    (AnsiColor::Black, 30),
+    (AnsiColor::Red, 31),
+    (AnsiColor::Green, 32),
+    (AnsiColor::Yellow, 33),
+    (AnsiColor::Blue, 34),
+    (AnsiColor::Magenta, 35),
+    (AnsiColor::Cyan, 36),
+    (AnsiColor::White, 37),
+    (AnsiColor::BrightBlack, 90),
+    (AnsiColor::BrightRed, 91),
+    (AnsiColor::BrightGreen, 92),
+    (AnsiColor::BrightYellow, 93),
+    (AnsiColor::BrightBlue, 94),
+    (AnsiColor::BrightMagenta, 95),
+    (AnsiColor::BrightCyan, 96),
+    (AnsiColor::BrightWhite, 97),
+];
+
+fn renderer_codes(color: ResolvedColor) -> String {
+    match color {
+        ResolvedColor::Named(color) => {
+            let code = PALETTE_CODES
+                .iter()
+                .find(|entry| entry.0 == color)
+                .unwrap()
+                .1;
+            format!("{code};{}", code + 10)
+        }
+        ResolvedColor::Ansi256(index) => format!("38;5;{index};48;5;{index}"),
+        ResolvedColor::Rgb(r, g, b) => format!("38;2;{r};{g};{b};48;2;{r};{g};{b}"),
+    }
+}
+
+fn assert_renderer_parity(styled: StyledText, resolved: Option<ResolvedColor>, level: ColorLevel) {
+    let target = RenderTarget::Capabilities(TerminalCapabilities {
+        is_terminal: true,
+        color_level: level,
+    });
+    let expected = match resolved {
+        Some(color) => format!("\x1b[{}mtest\x1b[0m", renderer_codes(color)),
+        None => "test".to_owned(),
+    };
+    assert_eq!(styled.render(target), expected);
+}
+
+#[rstest]
+fn named_renderer_matches_structured_resolution(
+    #[values(
+        ColorLevel::NoColor,
+        ColorLevel::Ansi16,
+        ColorLevel::Ansi256,
+        ColorLevel::TrueColor
+    )]
+    level: ColorLevel,
+) {
+    let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+    let styles = [
+        "test".black().on_black(),
+        "test".red().on_red(),
+        "test".green().on_green(),
+        "test".yellow().on_yellow(),
+        "test".blue().on_blue(),
+        "test".magenta().on_magenta(),
+        "test".cyan().on_cyan(),
+        "test".white().on_white(),
+        "test".bright_black().on_bright_black(),
+        "test".bright_red().on_bright_red(),
+        "test".bright_green().on_bright_green(),
+        "test".bright_yellow().on_bright_yellow(),
+        "test".bright_blue().on_bright_blue(),
+        "test".bright_magenta().on_bright_magenta(),
+        "test".bright_cyan().on_bright_cyan(),
+        "test".bright_white().on_bright_white(),
+    ];
+    for ((color, _), styled) in PALETTE_CODES.into_iter().zip(styles) {
+        assert_renderer_parity(styled, resolve_named(color, level), level);
+    }
+}
+
+#[rstest]
+fn rgb_renderer_matches_structured_resolution(
+    #[values(
+        ColorLevel::NoColor,
+        ColorLevel::Ansi16,
+        ColorLevel::Ansi256,
+        ColorLevel::TrueColor
+    )]
+    level: ColorLevel,
+    #[values((0, 0, 0), (255, 255, 255), (255, 0, 0), (0, 255, 0), (0, 0, 255), (95, 135, 175), (118, 118, 118), (128, 0, 0), (215, 58, 74), (64, 64, 64))]
+    rgb: (u8, u8, u8),
+) {
+    let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+    let (r, g, b) = rgb;
+    assert_renderer_parity(
+        "test".rgb(r, g, b).on_rgb(r, g, b),
+        resolve_rgb(r, g, b, level),
+        level,
+    );
+}
+
+#[rstest]
+fn indexed_renderer_matches_structured_resolution(
+    #[values(
+        ColorLevel::NoColor,
+        ColorLevel::Ansi16,
+        ColorLevel::Ansi256,
+        ColorLevel::TrueColor
+    )]
+    level: ColorLevel,
+    #[values(0, 8, 15, 16, 67, 208, 231, 232, 236, 255)] index: u8,
+) {
+    let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+    assert_renderer_parity(
+        "test".ansi256(index).on_ansi256(index),
+        resolve_ansi256(index, level),
+        level,
+    );
+}
+
+#[rstest]
+fn hsl_renderer_matches_structured_resolution(
+    #[values(
+        ColorLevel::NoColor,
+        ColorLevel::Ansi16,
+        ColorLevel::Ansi256,
+        ColorLevel::TrueColor
+    )]
+    level: ColorLevel,
+    #[values((0., 100., 50.), (360., 100., 50.), (120., 100., 50.), (240., 100., 50.), (0., 0., 50.))]
+    hsl: (f32, f32, f32),
+) {
+    let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+    let (h, s, l) = hsl;
+    assert_renderer_parity(
+        "test".hsl(h, s, l).on_hsl(h, s, l),
+        resolve_hsl(h, s, l, level).unwrap(),
+        level,
+    );
+}
+
+#[rstest]
+fn hex_renderer_matches_structured_resolution(
+    #[values(
+        ColorLevel::NoColor,
+        ColorLevel::Ansi16,
+        ColorLevel::Ansi256,
+        ColorLevel::TrueColor
+    )]
+    level: ColorLevel,
+    #[values("f80", "#F80", "d73A4a", "#d73a4a", "000", "#FFFFFF")] hex: &str,
+) {
+    let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
+    assert_renderer_parity(
+        "test".hex(hex).on_hex(hex),
+        resolve_hex(hex, level).unwrap(),
+        level,
+    );
 }
