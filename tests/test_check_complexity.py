@@ -36,8 +36,9 @@ CHECKER = cast("Any", _load_checker())
 
 
 VALID_XML = """\
-<root><measure type="File"><labels><label>NCSS</label><label>CCN</label></labels>
-<item name="src/main.rs"><value>7</value><value>2</value></item>
+<root><measure type="File"><labels>
+<label>Nr.</label><label>NCSS</label><label>CCN</label></labels>
+<item name="src/main.rs"><value>1</value><value>7</value><value>2</value></item>
 </measure></root>
 """
 
@@ -284,7 +285,7 @@ class ComplexityCheckerTests(unittest.TestCase):
             CHECKER._function_metrics(output, {"src/main.rs"})
 
     def test_file_metrics_parses_lizard_xml(self) -> None:
-        """Valid Lizard XML produces normalized per-file NCSS values."""
+        """NCSS is selected by label, not the first XML value (the file number)."""
         self.assertEqual(
             CHECKER._file_metrics(VALID_XML, {"src/main.rs"}),
             {"src/main.rs": 7},
