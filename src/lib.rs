@@ -143,7 +143,9 @@
 //! [`resolve_named`] preserves terminal palette identity at every enabled depth.
 //! [`resolve_ansi256`] keeps indexed colors indexed above ANSI 16.
 //! [`resolve_rgb`] selects named/indexed/exact RGB according to [`ColorLevel`].
-//! [`resolve_hsl`] and [`resolve_hex`] validate then use the same RGB policy.
+//! [`hsl_to_rgb`] and [`hex_to_rgb`] validate and convert directly to RGB,
+//! independently of terminal depth. [`resolve_hsl`] and [`resolve_hex`] delegate
+//! to these helpers, then use the same RGB policy.
 //! Invalid input returns [`ColorInputError`], even at `NoColor`; valid input
 //! with color disabled returns `Ok(None)`. Legacy styling semantics are unchanged.
 //!
@@ -183,8 +185,8 @@ mod tests;
 pub use color::AnsiColor;
 pub use config::{ColorDepthMode, ColorMode, ColorizeConfig, RenderTarget};
 pub use resolution::{
-    resolve_ansi256, resolve_hex, resolve_hsl, resolve_named, resolve_rgb, ColorInputError,
-    ResolvedColor,
+    hex_to_rgb, hsl_to_rgb, resolve_ansi256, resolve_hex, resolve_hsl, resolve_named, resolve_rgb,
+    ColorInputError, ResolvedColor,
 };
 pub use style::{Colorize, StyledText};
 pub use terminal::{ColorLevel, TerminalCapabilities};

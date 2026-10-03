@@ -1,6 +1,6 @@
 use colored_text::{
-    resolve_ansi256, resolve_hex, resolve_hsl, resolve_named, resolve_rgb, AnsiColor,
-    ColorInputError, ColorLevel, ResolvedColor,
+    hex_to_rgb, hsl_to_rgb, resolve_ansi256, resolve_hex, resolve_hsl, resolve_named, resolve_rgb,
+    AnsiColor, ColorInputError, ColorLevel, ResolvedColor,
 };
 use rstest::rstest;
 
@@ -113,10 +113,12 @@ fn indexed_colors_stay_indexed_above_ansi16(#[case] index: u8, #[case] named: An
 #[case((0., 100., 100.), (255, 255, 255))]
 #[case((-0., -0., -0.), (0, 0, 0))]
 fn hsl_uses_rgb_resolution_at_every_depth(#[case] hsl: (f32, f32, f32), #[case] rgb: (u8, u8, u8)) {
+    assert_eq!(hsl_to_rgb(hsl.0, hsl.1, hsl.2), Ok(rgb));
+    let (r, g, b) = hsl_to_rgb(hsl.0, hsl.1, hsl.2).unwrap();
     for level in LEVELS {
         assert_eq!(
             resolve_hsl(hsl.0, hsl.1, hsl.2, level),
-            Ok(resolve_rgb(rgb.0, rgb.1, rgb.2, level))
+            Ok(resolve_rgb(r, g, b, level))
         );
     }
 }
@@ -143,6 +145,10 @@ fn assert_invalid_hsl(component: &'static str, value: f32) {
     };
     for level in LEVELS {
         let error = resolve_hsl(h, s, l, level).unwrap_err();
+        assert_eq!(
+            format!("{error:?}"),
+            format!("{:?}", hsl_to_rgb(h, s, l).unwrap_err())
+        );
         match error {
             ColorInputError::InvalidHsl {
                 component: actual,
@@ -176,11 +182,10 @@ fn non_finite_hsl_is_rejected(
 #[case("000", (0, 0, 0))]
 #[case("#FFFFFF", (255, 255, 255))]
 fn hex_uses_rgb_resolution_at_every_depth(#[case] input: &str, #[case] rgb: (u8, u8, u8)) {
+    assert_eq!(hex_to_rgb(input), Ok(rgb));
+    let (r, g, b) = hex_to_rgb(input).unwrap();
     for level in LEVELS {
-        assert_eq!(
-            resolve_hex(input, level),
-            Ok(resolve_rgb(rgb.0, rgb.1, rgb.2, level))
-        );
+        assert_eq!(resolve_hex(input, level), Ok(resolve_rgb(r, g, b, level)));
     }
 }
 
@@ -202,6 +207,10 @@ fn hex_uses_rgb_resolution_at_every_depth(#[case] input: &str, #[case] rgb: (u8,
 #[case("aé")]
 #[case("éabcd")]
 fn malformed_hex_is_an_error_even_when_color_is_disabled(#[case] input: &str) {
+    let error = hex_to_rgb(input).unwrap_err();
+    for level in LEVELS {
+        assert_eq!(resolve_hex(input, level), Err(error.clone()));
+    }
     for level in LEVELS {
         assert_eq!(
             resolve_hex(input, level),

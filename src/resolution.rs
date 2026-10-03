@@ -102,16 +102,7 @@ pub fn resolve_hsl(
     l: f32,
     level: ColorLevel,
 ) -> Result<Option<ResolvedColor>, ColorInputError> {
-    for (component, value, maximum) in [
-        ("hue", h, 360.),
-        ("saturation", s, 100.),
-        ("lightness", l, 100.),
-    ] {
-        if !value.is_finite() || !(0.0..=maximum).contains(&value) {
-            return Err(ColorInputError::InvalidHsl { component, value });
-        }
-    }
-    let (r, g, b) = color::hsl_to_rgb(if h == 360. { 0. } else { h }, s, l);
+    let (r, g, b) = hsl_to_rgb(h, s, l)?;
     Ok(resolve_rgb(r, g, b, level))
 }
 
@@ -130,14 +121,69 @@ pub fn resolve_hex(
     input: &str,
     level: ColorLevel,
 ) -> Result<Option<ResolvedColor>, ColorInputError> {
+    let (r, g, b) = hex_to_rgb(input)?;
+    Ok(resolve_rgb(r, g, b, level))
+}
+
+/// Validate and convert HSL to RGB without terminal resolution or environment detection.
+///
+/// Hue is in `0..=360` degrees; saturation and lightness are in `0..=100`
+/// percent. Hue 360 is exactly equivalent to 0. Conversion uses the existing
+/// styling algorithm, which truncates channels to `u8`.
+/// [`resolve_hsl`] uses this conversion before applying [`resolve_rgb`].
+/// Legacy `.hsl()` / `.on_hsl()` styling methods remain permissive.
+///
+/// # Errors
+///
+/// Returns [`ColorInputError::InvalidHsl`] for the first non-finite or out-of-range
+/// component, checking hue, saturation, then lightness.
+///
+/// ```
+/// use colored_text::hsl_to_rgb;
+/// assert_eq!(hsl_to_rgb(360.0, 100.0, 50.0)?, (255, 0, 0));
+/// assert_eq!(hsl_to_rgb(0.0, 0.0, 50.0)?, (127, 127, 127));
+/// # Ok::<(), colored_text::ColorInputError>(())
+/// ```
+pub fn hsl_to_rgb(h: f32, s: f32, l: f32) -> Result<(u8, u8, u8), ColorInputError> {
+    for (component, value, maximum) in [
+        ("hue", h, 360.),
+        ("saturation", s, 100.),
+        ("lightness", l, 100.),
+    ] {
+        if !value.is_finite() || !(0.0..=maximum).contains(&value) {
+            return Err(ColorInputError::InvalidHsl { component, value });
+        }
+    }
+    Ok(color::hsl_to_rgb(if h == 360. { 0. } else { h }, s, l))
+}
+
+/// Parse hex into RGB without terminal resolution or environment detection.
+///
+/// Accepts ASCII `RGB`, `#RGB`, `RRGGBB`, and `#RRGGBB`, case-insensitively.
+/// Three-digit shorthand duplicates each digit. [`resolve_hex`] uses this
+/// parser before applying [`resolve_rgb`]. Legacy `.hex()` / `.on_hex()`
+/// methods retain their existing grammar and plain-text fallback behavior.
+///
+/// # Errors
+///
+/// Returns [`ColorInputError::InvalidHex`] for malformed input, including wrong
+/// lengths, whitespace, repeated prefixes, and non-ASCII or non-hex characters.
+/// The error retains the original input.
+///
+/// ```
+/// use colored_text::hex_to_rgb;
+/// assert_eq!(hex_to_rgb("#aBc")?, (170, 187, 204));
+/// assert_eq!(hex_to_rgb("d73a4a")?, (215, 58, 74));
+/// # Ok::<(), colored_text::ColorInputError>(())
+/// ```
+pub fn hex_to_rgb(input: &str) -> Result<(u8, u8, u8), ColorInputError> {
     let hex = input.strip_prefix('#').unwrap_or(input);
     let rgb = if hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         color::hex_to_rgb(hex)
     } else {
         None
     };
-    let (r, g, b) = rgb.ok_or_else(|| ColorInputError::InvalidHex {
+    rgb.ok_or_else(|| ColorInputError::InvalidHex {
         input: input.to_owned(),
-    })?;
-    Ok(resolve_rgb(r, g, b, level))
+    })
 }
