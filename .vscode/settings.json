@@ -1,4 +1,6 @@
 {
   "markiscodecoverage.searchCriteria": "target/llvm-cov/coverage.lcov",
-  "rust-analyzer.testExplorer": true
+  "rust-analyzer.testExplorer": true,
+  "rust-analyzer.check.command": "clippy",
+  "rust-analyzer.check.extraArgs": ["--all-features", "--locked"]
 }

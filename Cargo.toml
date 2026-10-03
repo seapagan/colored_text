@@ -3,10 +3,9 @@ name = "colored_text"
 version = "0.5.1"
 edition = "2021"
 description = "A simple library for adding colors and styles to terminal text"
-authors = ["Grant Ramsay <seapagan@gmail.com>"]
-license = "MIT"
 repository = "https://github.com/seapagan/colored_text"
-keywords = ["color", "terminal", "ansi", "text", "formatting"]
+license = "MIT"
+keywords = ["ansi", "color", "formatting", "terminal", "text"]
 categories = ["command-line-utilities", "text-processing"]
 
 [[example]]
