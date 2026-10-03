@@ -146,7 +146,19 @@ fn main() -> Result<(), colored_text::ColorInputError> {
 }
 ```
 
-HSL and hex convert to RGB before applying the same degradation policy used by
+The public `hsl_to_rgb(h, s, l)` and `hex_to_rgb(input)` helpers return
+`Result<(u8, u8, u8), ColorInputError>` without requiring a terminal color level.
+They do not inspect configuration or the environment.
+
+```rust
+use colored_text::{hex_to_rgb, hsl_to_rgb};
+
+assert_eq!(hsl_to_rgb(360.0, 100.0, 50.0).unwrap(), (255, 0, 0));
+assert_eq!(hex_to_rgb("#aBc").unwrap(), (170, 187, 204));
+```
+
+`resolve_hsl` and `resolve_hex` delegate to these helpers before applying the
+same RGB degradation policy used by
 `StyledText`. HSL requires finite hue in `0..=360` degrees and finite saturation
 and lightness in `0..=100` percent; hue 360 equals 0. Channel conversion retains
 the existing truncation behavior. Hex accepts ASCII `RGB`, `#RGB`, `RRGGBB`, and
