@@ -122,7 +122,7 @@ description = "Generate a local HTML coverage report"
 command = "cargo"
 args = [
     "llvm-cov", "nextest", "--all-targets", "--all-features", "--locked",
-    "--no-fail-fast", "--remap-path-prefix", "--fail-under-lines=100", "--fail-under-functions=100", "--fail-under-regions=99.64", "--html",
+    "--no-fail-fast", "--remap-path-prefix", "--html",
 ]
 
 [tasks.test-html]

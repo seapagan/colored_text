@@ -1,6 +1,6 @@
 use colored_text::{
     hex_to_rgb, hsl_to_rgb, resolve_ansi256, resolve_hex, resolve_hsl, resolve_named, resolve_rgb,
-    AnsiColor, ColorInputError, ColorLevel, ResolvedColor,
+    AnsiColor, ColorInputError, ColorLevel, HslComponent, ResolvedColor,
 };
 use rstest::rstest;
 
@@ -31,6 +31,8 @@ const NAMED: [AnsiColor; 16] = [
 
 #[test]
 fn named_colors_preserve_palette_identity_at_every_enabled_depth() {
+    fn assert_hash<T: std::hash::Hash>() {}
+    assert_hash::<AnsiColor>();
     for color in NAMED {
         assert_eq!(resolve_named(color, ColorLevel::NoColor), None);
         for level in &LEVELS[1..] {
@@ -117,24 +119,24 @@ fn hsl_uses_rgb_resolution_at_every_depth(#[case] hsl: (f32, f32, f32)) {
 }
 
 #[rstest]
-#[case("hue", -1.)]
-#[case("hue", 361.)]
-#[case("saturation", -1.)]
-#[case("saturation", 101.)]
-#[case("lightness", -1.)]
-#[case("lightness", 101.)]
+#[case(HslComponent::Hue, -1.)]
+#[case(HslComponent::Hue, 361.)]
+#[case(HslComponent::Saturation, -1.)]
+#[case(HslComponent::Saturation, 101.)]
+#[case(HslComponent::Lightness, -1.)]
+#[case(HslComponent::Lightness, 101.)]
 fn out_of_range_hsl_is_an_error_even_when_color_is_disabled(
-    #[case] component: &'static str,
+    #[case] component: HslComponent,
     #[case] value: f32,
 ) {
     assert_invalid_hsl(component, value);
 }
 
-fn assert_invalid_hsl(component: &'static str, value: f32) {
+fn assert_invalid_hsl(component: HslComponent, value: f32) {
     let (h, s, l) = match component {
-        "hue" => (value, 100., 50.),
-        "saturation" => (0., value, 50.),
-        _ => (0., 100., value),
+        HslComponent::Hue => (value, 100., 50.),
+        HslComponent::Saturation => (0., value, 50.),
+        HslComponent::Lightness => (0., 100., value),
     };
     for level in LEVELS {
         let error = resolve_hsl(h, s, l, level).unwrap_err();
@@ -157,7 +159,8 @@ fn assert_invalid_hsl(component: &'static str, value: f32) {
 
 #[rstest]
 fn non_finite_hsl_is_rejected(
-    #[values("hue", "saturation", "lightness")] component: &'static str,
+    #[values(HslComponent::Hue, HslComponent::Saturation, HslComponent::Lightness)]
+    component: HslComponent,
     #[values(f32::NAN, f32::INFINITY, f32::NEG_INFINITY)] value: f32,
 ) {
     assert_invalid_hsl(component, value);

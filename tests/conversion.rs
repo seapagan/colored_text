@@ -1,4 +1,4 @@
-use colored_text::{hex_to_rgb, hsl_to_rgb, ColorInputError};
+use colored_text::{hex_to_rgb, hsl_to_rgb, ColorInputError, HslComponent};
 use rstest::rstest;
 
 #[rstest]
@@ -43,6 +43,9 @@ fn hex_parser_accepts_documented_forms(#[case] input: &str, #[case] rgb: (u8, u8
 #[case("12345")]
 #[case("1234567")]
 #[case("ggg")]
+#[case("+ab")]
+#[case("+abcde")]
+#[case("#+ab")]
 #[case("#12x456")]
 #[case("##f80")]
 #[case("0xff8000")]
@@ -62,24 +65,24 @@ fn hex_parser_rejects_malformed_input(#[case] input: &str) {
 }
 
 #[rstest]
-#[case("hue", -1.)]
-#[case("hue", 361.)]
-#[case("saturation", -1.)]
-#[case("saturation", 101.)]
-#[case("lightness", -1.)]
-#[case("lightness", 101.)]
+#[case(HslComponent::Hue, -1.)]
+#[case(HslComponent::Hue, 361.)]
+#[case(HslComponent::Saturation, -1.)]
+#[case(HslComponent::Saturation, 101.)]
+#[case(HslComponent::Lightness, -1.)]
+#[case(HslComponent::Lightness, 101.)]
 fn hsl_conversion_rejects_out_of_range_components(
-    #[case] component: &'static str,
+    #[case] component: HslComponent,
     #[case] value: f32,
 ) {
     assert_invalid_hsl(component, value);
 }
 
-fn assert_invalid_hsl(component: &'static str, value: f32) {
+fn assert_invalid_hsl(component: HslComponent, value: f32) {
     let (h, s, l) = match component {
-        "hue" => (value, 100., 50.),
-        "saturation" => (0., value, 50.),
-        _ => (0., 100., value),
+        HslComponent::Hue => (value, 100., 50.),
+        HslComponent::Saturation => (0., value, 50.),
+        HslComponent::Lightness => (0., 100., value),
     };
     let error = hsl_to_rgb(h, s, l).unwrap_err();
     match error {
@@ -96,8 +99,30 @@ fn assert_invalid_hsl(component: &'static str, value: f32) {
 
 #[rstest]
 fn hsl_conversion_rejects_non_finite_components(
-    #[values("hue", "saturation", "lightness")] component: &'static str,
+    #[values(HslComponent::Hue, HslComponent::Saturation, HslComponent::Lightness)]
+    component: HslComponent,
     #[values(f32::NAN, f32::INFINITY, f32::NEG_INFINITY)] value: f32,
 ) {
     assert_invalid_hsl(component, value);
+}
+
+#[rstest]
+#[case(HslComponent::Hue, "hue")]
+#[case(HslComponent::Saturation, "saturation")]
+#[case(HslComponent::Lightness, "lightness")]
+fn hsl_component_has_public_value_traits_and_diagnostics(
+    #[case] component: HslComponent,
+    #[case] name: &str,
+) {
+    fn assert_traits<T: Clone + Copy + std::fmt::Debug + Eq + PartialEq + std::hash::Hash>() {}
+    assert_traits::<HslComponent>();
+    let error = ColorInputError::InvalidHsl {
+        component,
+        value: -1.,
+    };
+    assert_eq!(component.to_string(), name);
+    assert_eq!(
+        error.to_string(),
+        format!("invalid HSL {name}: -1 is non-finite or out of range")
+    );
 }

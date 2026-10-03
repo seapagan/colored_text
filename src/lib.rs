@@ -156,9 +156,12 @@
 //!
 //! # Minimum Supported Rust Version
 //!
-//! Rust 1.80.0 supports the library, examples, dev dependencies, and tests.
-//! The exact-toolchain boundary was verified: 1.79.0 fails on the test suite's
-//! `std::sync::LazyLock`, while 1.80.0 passes with the checked-in lockfile.
+//! Rust 1.78.0 supports library compilation, all targets/features, examples,
+//! dev dependencies, tests, doctests, documentation, builds, and packaging with
+//! the checked-in lockfile. Exact stable checks from 1.70.0 upward proved that
+//! 1.70.0 through 1.77.0 cannot read lockfile v4, while 1.78.0 passes the complete
+//! compiler gate. The immediately preceding 1.77.0 fails because its Cargo
+//! cannot read lockfile v4. The lockfile remains unchanged.
 //! `Cargo.toml` is the source of truth; dependency updates must preserve the MSRV
 //! or explicitly document a support-policy change.
 //!
@@ -191,7 +194,7 @@ pub use color::AnsiColor;
 pub use config::{ColorDepthMode, ColorMode, ColorizeConfig, RenderTarget};
 pub use resolution::{
     hex_to_rgb, hsl_to_rgb, resolve_ansi256, resolve_hex, resolve_hsl, resolve_named, resolve_rgb,
-    ColorInputError, ResolvedColor,
+    ColorInputError, HslComponent, ResolvedColor,
 };
 pub use style::{Colorize, StyledText};
 pub use terminal::{ColorLevel, TerminalCapabilities};

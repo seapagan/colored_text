@@ -12,9 +12,9 @@ use rstest::*;
 use std::env;
 use std::ffi::OsString;
 use std::io::IsTerminal;
-use std::sync::{LazyLock, Mutex, MutexGuard};
+use std::sync::{Mutex, MutexGuard};
 
-static TEST_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+static TEST_LOCK: Mutex<()> = Mutex::new(());
 const COLOR_ENV_KEYS: [&str; 10] = [
     "NO_COLOR",
     "FORCE_COLOR",
@@ -332,6 +332,9 @@ fn test_hex_colors(#[case] hex: &str, #[case] r: u8, #[case] g: u8, #[case] b: u
 #[case("#1234")]
 #[case("#12345678")]
 #[case("not-a-color")]
+#[case("+ab")]
+#[case("+abcde")]
+#[case("#+ab")]
 #[case("#12345")]
 #[case("#1234567")]
 #[case("#xyz")]

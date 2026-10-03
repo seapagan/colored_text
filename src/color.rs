@@ -45,7 +45,7 @@ const NAMED_COLORS: [AnsiColor; 16] = [
 ///
 /// Their appearance depends on the terminal theme. Bright variants select
 /// distinct palette entries, but some themes display them similarly.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum AnsiColor {
     /// Standard black terminal palette entry.
     Black,

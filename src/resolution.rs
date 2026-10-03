@@ -17,8 +17,42 @@ pub enum ResolvedColor {
     Rgb(u8, u8, u8),
 }
 
+/// A component of an HSL color input.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum HslComponent {
+    /// Hue in degrees, in `0..=360`.
+    Hue,
+    /// Saturation in percent, in `0..=100`.
+    Saturation,
+    /// Lightness in percent, in `0..=100`.
+    Lightness,
+}
+
+impl fmt::Display for HslComponent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Hue => "hue",
+            Self::Saturation => "saturation",
+            Self::Lightness => "lightness",
+        })
+    }
+}
+
 /// Invalid color input, distinct from valid input resolved under `NoColor`.
+///
+/// Future input forms may add variants; downstream matches need a wildcard arm.
+///
+/// ```
+/// use colored_text::{hsl_to_rgb, ColorInputError, HslComponent};
+/// match hsl_to_rgb(361., 100., 50.) {
+///     Err(ColorInputError::InvalidHsl { component: HslComponent::Hue, value }) => {
+///         assert_eq!(value, 361.);
+///     }
+///     _ => panic!("expected an invalid hue"),
+/// }
+/// ```
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum ColorInputError {
     /// Hex input does not match the supported ASCII grammar.
     InvalidHex {
@@ -27,8 +61,8 @@ pub enum ColorInputError {
     },
     /// An HSL component is non-finite or outside its documented range.
     InvalidHsl {
-        /// The invalid component: `"hue"`, `"saturation"`, or `"lightness"`.
-        component: &'static str,
+        /// The invalid HSL component.
+        component: HslComponent,
         /// The rejected value, including non-finite values.
         value: f32,
     },
@@ -147,9 +181,9 @@ pub fn resolve_hex(
 /// ```
 pub fn hsl_to_rgb(h: f32, s: f32, l: f32) -> Result<(u8, u8, u8), ColorInputError> {
     for (component, value, maximum) in [
-        ("hue", h, 360.),
-        ("saturation", s, 100.),
-        ("lightness", l, 100.),
+        (HslComponent::Hue, h, 360.),
+        (HslComponent::Saturation, s, 100.),
+        (HslComponent::Lightness, l, 100.),
     ] {
         if !value.is_finite() || !(0.0..=maximum).contains(&value) {
             return Err(ColorInputError::InvalidHsl { component, value });
@@ -197,6 +231,7 @@ pub fn hsl_to_rgb(h: f32, s: f32, l: f32) -> Result<(u8, u8, u8), ColorInputErro
 /// ```
 pub fn hex_to_rgb(input: &str) -> Result<(u8, u8, u8), ColorInputError> {
     let hex = input.strip_prefix('#').unwrap_or(input);
+    // Enforce ASCII hex grammar: from_str_radix also accepts a leading '+'.
     let rgb = if hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         match (hex.len(), u32::from_str_radix(hex, 16).ok()) {
             (3, Some(value)) => Some((

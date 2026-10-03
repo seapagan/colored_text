@@ -40,10 +40,13 @@ colored_text = "0.5.1"
 
 ## Minimum Supported Rust Version
 
-The MSRV is **Rust 1.80.0**, declared in `Cargo.toml`. It covers the library,
-examples, dev dependencies, and test suite. Exact-toolchain testing with the
-checked-in lockfile proved that 1.80.0 passes and 1.79.0 fails on the test
-suite's `std::sync::LazyLock`. The existing v4 lockfile remains unchanged.
+The MSRV is **Rust 1.78.0**, declared in `Cargo.toml`. It covers library
+compilation, all targets/features, examples, dev dependencies, tests, doctests,
+documentation, builds, and package verification with the checked-in lockfile.
+Exact stable toolchains were tested upward from 1.70.0: 1.70.0 through 1.77.0
+cannot read lockfile v4, while 1.78.0 passes the complete compiler gate. The
+immediately preceding 1.77.0 fails because its Cargo cannot read lockfile v4.
+The lockfile remains unchanged.
 
 The MSRV is determined by this project, independently of consumers. Dependency
 updates must preserve it or explicitly declare and document a policy change.
@@ -149,6 +152,13 @@ fn main() -> Result<(), colored_text::ColorInputError> {
 The public `hsl_to_rgb(h, s, l)` and `hex_to_rgb(input)` helpers return
 `Result<(u8, u8, u8), ColorInputError>` without requiring a terminal color level.
 They do not inspect configuration or the environment.
+
+`ColorInputError::InvalidHsl { component, value }` identifies the rejected
+`HslComponent::Hue`, `Saturation`, or `Lightness` and retains the `f32` value.
+`HslComponent` implements `Clone`, `Copy`, `Debug`, `Eq`, `PartialEq`, `Hash`,
+and `Display`. `ColorInputError` is non-exhaustive; downstream matches need a
+wildcard arm. `AnsiColor` (including `Hash`) and `ResolvedColor` remain
+exhaustive for custom renderers.
 
 ```rust
 use colored_text::{hex_to_rgb, hsl_to_rgb};
