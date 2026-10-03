@@ -67,11 +67,9 @@ pub struct ColorizeConfig {
 thread_local! {
     static CONFIG: RefCell<ColorizeConfig> = RefCell::new(ColorizeConfig::default());
     #[cfg(test)]
-    #[allow(clippy::missing_const_for_thread_local)]
-    static STDOUT_TERMINAL_OVERRIDE: RefCell<Option<bool>> = RefCell::new(None);
+    static STDOUT_TERMINAL_OVERRIDE: RefCell<Option<bool>> = const { RefCell::new(None) };
     #[cfg(test)]
-    #[allow(clippy::missing_const_for_thread_local)]
-    static STDERR_TERMINAL_OVERRIDE: RefCell<Option<bool>> = RefCell::new(None);
+    static STDERR_TERMINAL_OVERRIDE: RefCell<Option<bool>> = const { RefCell::new(None) };
 }
 
 impl Default for ColorizeConfig {
