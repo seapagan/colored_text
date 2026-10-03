@@ -40,16 +40,16 @@ colored_text = "0.5.1"
 
 ## Minimum Supported Rust Version
 
-The MSRV is **Rust 1.78.0**, declared in `Cargo.toml`. It covers library
-compilation, all targets/features, examples, dev dependencies, tests, doctests,
-documentation, builds, and package verification with the checked-in lockfile.
-Exact stable toolchains were tested upward from 1.70.0: 1.70.0 through 1.77.0
-cannot read lockfile v4, while 1.78.0 passes the complete compiler gate. The
-immediately preceding 1.77.0 fails because its Cargo cannot read lockfile v4.
-The lockfile remains unchanged.
+The package/source MSRV is **Rust 1.70.0**, declared in `Cargo.toml`. Exact
+toolchain probes with a compatible lockfile proved that Rust 1.69.0 fails with
+`E0658` on production uses of `std::io::IsTerminal` and `Option::is_some_and`.
+Rust 1.70.0 passes library and example builds, documentation, and package
+verification, plus the complete repository gate for all targets/features,
+dev dependencies, tests, doctests, formatting, and Clippy. Cargo 1.70 generated
+the checked-in v3 lockfile without changing dependency versions.
 
-The MSRV is determined by this project, independently of consumers. Dependency
-updates must preserve it or explicitly declare and document a policy change.
+The MSRV represents consumer source compatibility. Dependency updates must
+preserve it or explicitly declare and document a policy change.
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the verification commands.
 
 ## Compatibility with 0.4.1

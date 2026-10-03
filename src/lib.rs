@@ -156,12 +156,12 @@
 //!
 //! # Minimum Supported Rust Version
 //!
-//! Rust 1.78.0 supports library compilation, all targets/features, examples,
-//! dev dependencies, tests, doctests, documentation, builds, and packaging with
-//! the checked-in lockfile. Exact stable checks from 1.70.0 upward proved that
-//! 1.70.0 through 1.77.0 cannot read lockfile v4, while 1.78.0 passes the complete
-//! compiler gate. The immediately preceding 1.77.0 fails because its Cargo
-//! cannot read lockfile v4. The lockfile remains unchanged.
+//! The package/source MSRV is Rust 1.70.0. With a compatible lockfile, Rust
+//! 1.69.0 fails with `E0658` on production uses of `std::io::IsTerminal` and
+//! `Option::is_some_and`. Rust 1.70.0 passes library and example builds,
+//! documentation, packaging, and the full repository compiler gate, including
+//! all targets/features, dev dependencies, tests, doctests, formatting, and
+//! Clippy. Cargo 1.70 generated lockfile v3 without changing dependency versions.
 //! `Cargo.toml` is the source of truth; dependency updates must preserve the MSRV
 //! or explicitly document a support-policy change.
 //!

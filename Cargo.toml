@@ -2,7 +2,7 @@
 name = "colored_text"
 version = "0.5.1"
 edition = "2021"
-rust-version = "1.78.0"
+rust-version = "1.70.0"
 description = "A simple library for adding colors and styles to terminal text"
 repository = "https://github.com/seapagan/colored_text"
 license = "MIT"

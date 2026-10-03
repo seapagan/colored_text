@@ -7,18 +7,20 @@ prefers zero runtime dependencies; justify any proposed runtime dependency.
 ## Rust support
 
 `Cargo.toml`'s `rust-version` is the single source of truth for the MSRV. The
-library, all targets/features, examples, dev dependencies, tests, doctests,
-documentation, builds, and package verification support Rust 1.78.0 with the
-unchanged v4 lockfile. Exact stable checks from 1.70.0 upward proved that
-1.70.0 through 1.77.0 reject lockfile v4; 1.78.0 passes the complete compiler
-gate. The immediately preceding 1.77.0 fails because its Cargo cannot read
-lockfile v4. No dependency downgrades were needed to select the boundary.
+package/source MSRV is Rust 1.70.0. With a compatible lockfile, Rust 1.69.0
+fails with `E0658` on production uses of `std::io::IsTerminal` and
+`Option::is_some_and`. Rust 1.70.0 passes library and example builds,
+documentation, package verification, and the full repository compiler gate:
+all targets/features, dev dependencies, tests, doctests, formatting, and Clippy.
+Cargo 1.70 regenerated the lockfile as v3 with identical dependency versions.
+Keep the lockfile readable by the declared MSRV; regenerate it with that
+toolchain's Cargo and inspect the diff. Current stable also accepts v3.
 
 Before updating dependencies, inspect their compiler requirements and release
 notes, retain a reproducible lockfile, and run `cargo make msrv`. An MSRV increase
 requires an explicit support-policy decision and documentation update. Consumer
-projects and the bootstrap requirements of developer tools do not set this
-crate's MSRV.
+projects, test dependencies, lockfile format, and the bootstrap requirements of
+developer tools do not set the package/source MSRV.
 
 ## Local tools and checks
 
@@ -32,7 +34,7 @@ builds, and packaging. No external scripting runtime is required. Install the
 exact declared Rust toolchain with Clippy and rustfmt before running the task:
 
 ```console
-rustup toolchain install 1.78.0 --profile minimal --component clippy,rustfmt
+rustup toolchain install 1.70.0 --profile minimal --component clippy,rustfmt
 cargo make verify
 ```
 
