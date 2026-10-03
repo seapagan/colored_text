@@ -60,10 +60,14 @@
 //!   via `u8` type)
 //! - `.color256(index)` and `.on_color256(index)` are aliases for
 //!   `.ansi256(index)` and `.on_ansi256(index)`
-//! - Hex color codes can be provided with or without the `#` prefix in 3-digit
-//!   shorthand or 6-digit full form
-//! - Invalid hex codes (wrong length or invalid characters) return plain
-//!   unstyled text
+//! - HSL values must be finite, with hue in `0..=360` degrees and saturation and
+//!   lightness in `0..=100` percent; hue 360 equals 0
+//! - Hex accepts ASCII `RGB`, `#RGB`, `RRGGBB`, and `#RRGGBB`, case-insensitively,
+//!   with zero or one leading `#` and no whitespace
+//! - Invalid HSL or hex passed to styling methods clears all styling and returns
+//!   plain unstyled text, including for non-ASCII hex input
+//! - Public conversion/resolution functions return [`ColorInputError`] on
+//!   invalid HSL or hex input
 //! - All color methods are guaranteed to return a valid string, never panicking
 //!
 //! ```rust
@@ -147,7 +151,8 @@
 //! independently of terminal depth. [`resolve_hsl`] and [`resolve_hex`] delegate
 //! to these helpers, then use the same RGB policy.
 //! Invalid input returns [`ColorInputError`], even at `NoColor`; valid input
-//! with color disabled returns `Ok(None)`. Legacy styling semantics are unchanged.
+//! with color disabled returns `Ok(None)`. Styling methods use the same
+//! validated conversions, clearing all styling on invalid input.
 //!
 //! # Minimum Supported Rust Version
 //!

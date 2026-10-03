@@ -164,10 +164,12 @@ and lightness in `0..=100` percent; hue 360 equals 0. Channel conversion retains
 the existing truncation behavior. Hex accepts ASCII `RGB`, `#RGB`, `RRGGBB`, and
 `#RRGGBB`, case-insensitively, without whitespace or repeated prefixes.
 
-Invalid HSL/hex returns `ColorInputError`, even at `NoColor`; valid input with
-color disabled returns `Ok(None)`. Existing `.hsl()` / `.on_hsl()` remain
-permissive, and `.hex()` / `.on_hex()` keep their existing grammar and plain-text
-fallback. Resolver functions do not read configuration or the environment.
+Invalid HSL/hex returns `ColorInputError` from public conversion/resolution
+functions, even at `NoColor`; valid resolver input with color disabled returns
+`Ok(None)`. The `.hsl()` / `.on_hsl()` and `.hex()` / `.on_hex()` styling methods
+use the same validated conversions and clear all styling on invalid input,
+returning plain unstyled text. Resolver functions do not read configuration or
+the environment.
 They return structured data for any downstream renderer, with no renderer
 framework dependency.
 
@@ -265,10 +267,14 @@ They use the standard bright background SGR codes `100-107`.
 - Attempting to use RGB values > 255 will result in a compile error
 - ANSI 256-color indexes must be in range 0-255 (enforced at compile time via
   `u8` type)
-- Hex color codes can be provided with or without the '#' prefix in either
-  3-character shorthand or 6-character full form
-- Invalid hex codes (wrong length, invalid characters) will result in plain
-  unstyled text
+- HSL values must be finite, with hue in `0..=360` degrees and saturation and
+  lightness in `0..=100` percent; hue 360 equals 0
+- Hex accepts ASCII `RGB`, `#RGB`, `RRGGBB`, and `#RRGGBB`, case-insensitively,
+  with exactly zero or one leading `#` and no whitespace
+- Invalid HSL or hex passed to styling methods clears all styling and returns
+  plain unstyled text, including for non-ASCII hex input
+- Public conversion/resolution functions return `ColorInputError` on invalid
+  HSL or hex input
 - All color methods are guaranteed to return a valid string, never panicking
 
 ```rust

@@ -335,13 +335,23 @@ fn test_hex_colors(#[case] hex: &str, #[case] r: u8, #[case] g: u8, #[case] b: u
 #[case("#12345")]
 #[case("#1234567")]
 #[case("#xyz")]
+#[case("##f80")]
+#[case("##123456")]
+#[case(" #f80")]
+#[case("#f80 ")]
+#[case("f80\n")]
+#[case("aé")]
+#[case("aéabc")]
+#[case("aaaéa")]
+#[case("aa€a")]
 fn test_invalid_hex_returns_plain_text(#[case] hex: &str) {
     let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
     let text = "test";
     assert_eq!(text.hex(hex).to_string(), "test");
     assert_eq!(text.on_hex(hex).to_string(), "test");
-    assert_eq!(text.red().hex(hex).to_string(), "test");
-    assert_eq!(text.on_blue().on_hex(hex).to_string(), "test");
+    let styled = text.colorize("4").bold().red().on_blue();
+    assert_eq!(styled.clone().hex(hex).to_string(), "test");
+    assert_eq!(styled.on_hex(hex).to_string(), "test");
 }
 
 #[test]
@@ -1265,61 +1275,34 @@ fn test_assert_rgb_approx_eq_large_diff() {
 }
 
 #[rstest]
-#[case((0., 100., 50.), (255, 0, 0))]
-#[case((360., 100., 50.), (255, 0, 0))]
-#[case((-1., 100., 50.), (255, 0, 0))]
-#[case((361., 100., 50.), (255, 0, 4))]
-#[case((0., -1., 50.), (126, 128, 128))]
-#[case((0., 101., 50.), (255, 0, 0))]
-#[case((0., 100., -1.), (0, 0, 0))]
-#[case((0., 100., 101.), (255, 255, 255))]
-#[case((f32::NAN, 100., 50.), (255, 0, 0))]
-#[case((f32::INFINITY, 100., 50.), (255, 0, 0))]
-#[case((f32::NEG_INFINITY, 100., 50.), (255, 0, 0))]
-#[case((0., f32::NAN, 50.), (0, 0, 0))]
-#[case((0., f32::INFINITY, 50.), (0, 0, 0))]
-#[case((0., f32::NEG_INFINITY, 50.), (0, 0, 255))]
-#[case((0., 100., f32::NAN), (0, 0, 0))]
-#[case((0., 100., f32::INFINITY), (0, 0, 255))]
-#[case((0., 100., f32::NEG_INFINITY), (0, 0, 0))]
-fn legacy_hsl_edge_outputs_are_preserved(#[case] hsl: (f32, f32, f32), #[case] rgb: (u8, u8, u8)) {
-    let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
-    let (h, s, l) = hsl;
-    let (r, g, b) = rgb;
-    assert_eq!(
-        "test".hsl(h, s, l).to_string(),
-        format!("\x1b[38;2;{r};{g};{b}mtest\x1b[0m")
-    );
-    assert_eq!(
-        "test".on_hsl(h, s, l).to_string(),
-        format!("\x1b[48;2;{r};{g};{b}mtest\x1b[0m")
-    );
+#[case((-1., 100., 50.))]
+#[case((361., 100., 50.))]
+#[case((0., -1., 50.))]
+#[case((0., 101., 50.))]
+#[case((0., 100., -1.))]
+#[case((0., 100., 101.))]
+fn out_of_range_hsl_clears_styling(#[case] hsl: (f32, f32, f32)) {
+    assert_invalid_hsl_clears_styling(hsl);
 }
 
-#[test]
-fn legacy_hex_accepts_repeated_prefixes_and_clears_invalid_styles() {
+#[rstest]
+fn non_finite_hsl_clears_styling(
+    #[values(0, 1, 2)] component: usize,
+    #[values(f32::NAN, f32::INFINITY, f32::NEG_INFINITY)] value: f32,
+) {
+    let mut hsl = [0., 100., 50.];
+    hsl[component] = value;
+    assert_invalid_hsl_clears_styling((hsl[0], hsl[1], hsl[2]));
+}
+
+fn assert_invalid_hsl_clears_styling(hsl: (f32, f32, f32)) {
     let _guard = TestStateGuard::colors_enabled(ColorMode::Always);
-    assert_eq!(
-        "test".hex("##f80").to_string(),
-        "\x1b[38;2;255;136;0mtest\x1b[0m"
-    );
-    assert_eq!(
-        "test".on_hex("##f80").to_string(),
-        "\x1b[48;2;255;136;0mtest\x1b[0m"
-    );
-    assert_eq!(
-        "test".bold().red().on_blue().hex("bad input").to_string(),
-        "test"
-    );
-    assert_eq!(
-        "test"
-            .bold()
-            .red()
-            .on_blue()
-            .on_hex("bad input")
-            .to_string(),
-        "test"
-    );
+    let (h, s, l) = hsl;
+    assert_eq!("test".hsl(h, s, l).to_string(), "test");
+    assert_eq!("test".on_hsl(h, s, l).to_string(), "test");
+    let styled = "test".colorize("4").bold().red().on_blue();
+    assert_eq!(styled.clone().hsl(h, s, l).to_string(), "test");
+    assert_eq!(styled.on_hsl(h, s, l).to_string(), "test");
 }
 
 const PALETTE_CODES: [(AnsiColor, u8); 16] = [

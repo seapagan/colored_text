@@ -1,9 +1,8 @@
 use std::fmt::{self, Display};
 
-use crate::color::{
-    legacy_permissive_hex_to_rgb, legacy_permissive_hsl_to_rgb, AnsiColor, ColorSpec,
-};
+use crate::color::{AnsiColor, ColorSpec};
 use crate::config::{color_level, color_level_for, RenderTarget};
+use crate::resolution::{hex_to_rgb, hsl_to_rgb};
 use crate::terminal::ColorLevel;
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -342,22 +341,34 @@ impl StyledText {
     }
 
     /// Convert HSL to RGB and apply it to the foreground color.
+    ///
+    /// Uses [`hsl_to_rgb`]: all values must be finite, with hue in `0..=360`
+    /// degrees and saturation/lightness in `0..=100` percent. Hue 360 equals 0.
+    /// Invalid input clears all styling.
     pub fn hsl(self, h: f32, s: f32, l: f32) -> Self {
-        let (r, g, b) = legacy_permissive_hsl_to_rgb(h, s, l);
-        self.rgb(r, g, b)
+        match hsl_to_rgb(h, s, l) {
+            Ok((r, g, b)) => self.rgb(r, g, b),
+            Err(_) => self.clear(),
+        }
     }
 
     /// Convert HSL to RGB and apply it to the background color.
+    ///
+    /// Uses the same validation and plain-text fallback as [`Self::hsl`].
     pub fn on_hsl(self, h: f32, s: f32, l: f32) -> Self {
-        let (r, g, b) = legacy_permissive_hsl_to_rgb(h, s, l);
-        self.on_rgb(r, g, b)
+        match hsl_to_rgb(h, s, l) {
+            Ok((r, g, b)) => self.on_rgb(r, g, b),
+            Err(_) => self.clear(),
+        }
     }
 
     /// Apply a hex foreground color.
     ///
+    /// Uses [`hex_to_rgb`]: ASCII `RGB` or `RRGGBB`, case-insensitively,
+    /// with zero or one leading `#` and no whitespace.
     /// Invalid input clears all styling and returns plain text.
     pub fn hex(self, hex: &str) -> Self {
-        if let Some((r, g, b)) = legacy_permissive_hex_to_rgb(hex) {
+        if let Ok((r, g, b)) = hex_to_rgb(hex) {
             self.rgb(r, g, b)
         } else {
             self.clear()
@@ -366,9 +377,10 @@ impl StyledText {
 
     /// Apply a hex background color.
     ///
+    /// Uses the same validation as [`Self::hex`].
     /// Invalid input clears all styling and returns plain text.
     pub fn on_hex(self, hex: &str) -> Self {
-        if let Some((r, g, b)) = legacy_permissive_hex_to_rgb(hex) {
+        if let Ok((r, g, b)) = hex_to_rgb(hex) {
             self.on_rgb(r, g, b)
         } else {
             self.clear()
@@ -515,12 +527,20 @@ pub trait Colorize {
     /// Apply a true-color RGB background.
     fn on_rgb(&self, r: u8, g: u8, b: u8) -> StyledText;
     /// Convert HSL to RGB and apply it to the foreground.
+    ///
+    /// See [`StyledText::hsl`] for valid ranges. Invalid input clears all styling.
     fn hsl(&self, h: f32, s: f32, l: f32) -> StyledText;
     /// Convert HSL to RGB and apply it to the background.
+    ///
+    /// See [`StyledText::on_hsl`] for valid ranges. Invalid input clears all styling.
     fn on_hsl(&self, h: f32, s: f32, l: f32) -> StyledText;
     /// Apply a hex foreground color, or plain text on invalid input.
+    ///
+    /// See [`StyledText::hex`] for the accepted grammar.
     fn hex(&self, hex: &str) -> StyledText;
     /// Apply a hex background color, or plain text on invalid input.
+    ///
+    /// See [`StyledText::on_hex`] for the accepted grammar.
     fn on_hex(&self, hex: &str) -> StyledText;
     /// Remove all styling and return plain text.
     fn clear(&self) -> StyledText;

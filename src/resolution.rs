@@ -1,6 +1,6 @@
 //! Renderer-neutral color resolution, independent of environment detection.
 
-use crate::color::{self, ColorSpec};
+use crate::color::ColorSpec;
 use crate::{AnsiColor, ColorLevel};
 use std::fmt;
 
@@ -95,7 +95,7 @@ pub fn resolve_rgb(r: u8, g: u8, b: u8, level: ColorLevel) -> Option<ResolvedCol
 ///
 /// Returns [`ColorInputError::InvalidHsl`] for any non-finite or out-of-range
 /// component, even at `NoColor`. Valid input at `NoColor` returns `Ok(None)`.
-/// Legacy `.hsl()` / `.on_hsl()` styling methods retain their permissive behavior.
+/// Styling methods use the same validation but clear styling on invalid input.
 pub fn resolve_hsl(
     h: f32,
     s: f32,
@@ -115,8 +115,8 @@ pub fn resolve_hsl(
 /// # Errors
 ///
 /// Returns [`ColorInputError::InvalidHex`] for malformed input, even at `NoColor`.
-/// Valid input at `NoColor` returns `Ok(None)`. Legacy `.hex()` / `.on_hex()`
-/// methods retain their existing grammar and plain-text fallback behavior.
+/// Valid input at `NoColor` returns `Ok(None)`. Styling methods use the same
+/// parser but clear styling on invalid input.
 pub fn resolve_hex(
     input: &str,
     level: ColorLevel,
@@ -131,7 +131,8 @@ pub fn resolve_hex(
 /// percent. Hue 360 is exactly equivalent to 0. Conversion uses the existing
 /// styling algorithm, which truncates channels to `u8`.
 /// [`resolve_hsl`] uses this conversion before applying [`resolve_rgb`].
-/// Legacy `.hsl()` / `.on_hsl()` styling methods remain permissive.
+/// [`crate::StyledText::hsl`] and [`crate::StyledText::on_hsl`] use this conversion,
+/// clearing all styling on invalid input.
 ///
 /// # Errors
 ///
@@ -154,10 +155,24 @@ pub fn hsl_to_rgb(h: f32, s: f32, l: f32) -> Result<(u8, u8, u8), ColorInputErro
             return Err(ColorInputError::InvalidHsl { component, value });
         }
     }
-    Ok(color::legacy_permissive_hsl_to_rgb(
-        if h == 360. { 0. } else { h },
-        s,
-        l,
+    let h = if h == 360. { 0. } else { h / 360. };
+    let s = s / 100.0;
+    let l = l / 100.0;
+    let c = (1.0 - (2.0 * l - 1.0).abs()) * s;
+    let x = c * (1.0 - ((h * 6.0) % 2.0 - 1.0).abs());
+    let m = l - c / 2.0;
+    let (r, g, b) = match (h * 6.0) as i32 {
+        0 => (c, x, 0.0),
+        1 => (x, c, 0.0),
+        2 => (0.0, c, x),
+        3 => (0.0, x, c),
+        4 => (x, 0.0, c),
+        _ => (c, 0.0, x),
+    };
+    Ok((
+        ((r + m) * 255.0) as u8,
+        ((g + m) * 255.0) as u8,
+        ((b + m) * 255.0) as u8,
     ))
 }
 
@@ -165,8 +180,8 @@ pub fn hsl_to_rgb(h: f32, s: f32, l: f32) -> Result<(u8, u8, u8), ColorInputErro
 ///
 /// Accepts ASCII `RGB`, `#RGB`, `RRGGBB`, and `#RRGGBB`, case-insensitively.
 /// Three-digit shorthand duplicates each digit. [`resolve_hex`] uses this
-/// parser before applying [`resolve_rgb`]. Legacy `.hex()` / `.on_hex()`
-/// methods retain their existing grammar and plain-text fallback behavior.
+/// parser before applying [`resolve_rgb`]. [`crate::StyledText::hex`] and
+/// [`crate::StyledText::on_hex`] use this parser, clearing all styling on invalid input.
 ///
 /// # Errors
 ///
@@ -183,7 +198,15 @@ pub fn hsl_to_rgb(h: f32, s: f32, l: f32) -> Result<(u8, u8, u8), ColorInputErro
 pub fn hex_to_rgb(input: &str) -> Result<(u8, u8, u8), ColorInputError> {
     let hex = input.strip_prefix('#').unwrap_or(input);
     let rgb = if hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        color::legacy_permissive_hex_to_rgb(hex)
+        match (hex.len(), u32::from_str_radix(hex, 16).ok()) {
+            (3, Some(value)) => Some((
+                (value >> 8) as u8 * 17,
+                ((value >> 4) & 0xf) as u8 * 17,
+                (value & 0xf) as u8 * 17,
+            )),
+            (6, Some(value)) => Some(((value >> 16) as u8, (value >> 8) as u8, value as u8)),
+            _ => None,
+        }
     } else {
         None
     };

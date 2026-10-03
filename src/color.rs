@@ -41,58 +41,6 @@ const NAMED_COLORS: [AnsiColor; 16] = [
     AnsiColor::BrightWhite,
 ];
 
-/// Convert HSL color values to RGB.
-///
-/// - `h`: Hue in degrees
-/// - `s`: Saturation percentage
-/// - `l`: Lightness percentage
-pub(crate) fn legacy_permissive_hsl_to_rgb(h: f32, s: f32, l: f32) -> (u8, u8, u8) {
-    let h = h / 360.0;
-    let s = s / 100.0;
-    let l = l / 100.0;
-
-    let c = (1.0 - (2.0 * l - 1.0).abs()) * s;
-    let x = c * (1.0 - ((h * 6.0) % 2.0 - 1.0).abs());
-    let m = l - c / 2.0;
-
-    let (r, g, b) = match (h * 6.0) as i32 {
-        0 => (c, x, 0.0),
-        1 => (x, c, 0.0),
-        2 => (0.0, c, x),
-        3 => (0.0, x, c),
-        4 => (x, 0.0, c),
-        _ => (c, 0.0, x),
-    };
-
-    (
-        ((r + m) * 255.0) as u8,
-        ((g + m) * 255.0) as u8,
-        ((b + m) * 255.0) as u8,
-    )
-}
-
-pub(crate) fn legacy_permissive_hex_to_rgb(hex: &str) -> Option<(u8, u8, u8)> {
-    let hex = hex.trim_start_matches('#');
-    let expanded = match hex.len() {
-        3 => {
-            let mut expanded = String::with_capacity(6);
-            for ch in hex.chars() {
-                expanded.push(ch);
-                expanded.push(ch);
-            }
-            expanded
-        }
-        6 => hex.to_string(),
-        _ => return None,
-    };
-
-    let r = u8::from_str_radix(&expanded[0..2], 16).ok()?;
-    let g = u8::from_str_radix(&expanded[2..4], 16).ok()?;
-    let b = u8::from_str_radix(&expanded[4..6], 16).ok()?;
-
-    Some((r, g, b))
-}
-
 /// The standard 16 terminal palette colors.
 ///
 /// Their appearance depends on the terminal theme. Bright variants select
