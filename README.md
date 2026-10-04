@@ -4,12 +4,11 @@
 [![Documentation](https://docs.rs/colored_text/badge.svg)](https://docs.rs/colored_text)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A simple and intuitive library for adding colors and styles to terminal text in
-Rust.
+Add colors and styles to terminal text in Rust.
 
 ## Features
 
-- Simple method-call syntax for applying colors and styles
+- Method-call syntax for applying colors and styles
 - Support for basic colors, bright colors, and background colors
 - Text styling (bold, dim, italic, underline, inverse, strikethrough)
 - ANSI 256, RGB, HSL, and hex color support for both text and background
@@ -22,12 +21,9 @@ Rust.
 - Structured color resolution for custom renderers, TUIs, loggers, and adapters
 - Supports `NO_COLOR`, `FORCE_COLOR`, `CLICOLOR`, `CLICOLOR_FORCE`, `TERM`,
   `COLORTERM`, `CI`, `WT_SESSION`, `ConEmuANSI`, and `ANSICON`
-- Supports explicit runtime color modes: `Auto`, `Always`, and `Never`
-- Detects if the output is NOT going to a terminal (e.g. is going to a file or a
-  pipe) and disables colors in `Auto` mode unless color is force-enabled
-- Supports explicit target-aware rendering for stdout, stderr, or custom
-  terminal-aware destinations
-- Complete documentation and examples
+- Runtime color modes: `Auto`, `Always`, and `Never`; `Auto` disables colors
+  for files and pipes unless color is forced
+- Target-aware rendering for stdout, stderr, and custom destinations
 
 ## Installation
 
@@ -35,29 +31,19 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-colored_text = "0.5.1"
+colored_text = "0.6.0"
 ```
 
 ## Minimum Supported Rust Version
 
-The package/source MSRV is **Rust 1.70.0**, declared in `Cargo.toml`. Exact
-toolchain probes with a compatible lockfile proved that Rust 1.69.0 fails with
-`E0658` on production uses of `std::io::IsTerminal` and `Option::is_some_and`.
-Rust 1.70.0 passes library and example builds, documentation, and package
-verification, plus the complete repository gate for all targets/features,
-dev dependencies, tests, doctests, formatting, and Clippy. Cargo 1.70 generated
-the checked-in v3 lockfile without changing dependency versions.
+Minimum supported Rust version: **1.70.0**.
 
-The MSRV represents consumer source compatibility. Dependency updates must
-preserve it or explicitly declare and document a policy change.
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the verification commands.
+## Upgrading from versions before 0.5.0
 
-## Compatibility with 0.4.1
-
-Since `0.4.1`, `Colorize` has gained required trait methods for bright
-foreground and bright background colors. Most users rely on the blanket
-`impl<T: Display> Colorize for T` and are unaffected. Downstream crates with
-manual `impl Colorize for ...` blocks must implement the new methods.
+In 0.5.0, `Colorize` gained required bright-background methods such as
+`on_bright_red()`. Most users rely on the blanket `impl<T: Display> Colorize for
+T` and are unaffected. Downstream crates with manual `impl Colorize for ...`
+blocks written against earlier versions must implement the new methods.
 
 ## Usage
 
@@ -78,11 +64,13 @@ println!("{}", "Bold text".bold());
 println!("{}", "Italic text".italic());
 println!("{}", "Underlined text".underline());
 
-// ANSI 256, RGB, and Hex colors
+// ANSI 256, RGB, HSL, and Hex colors
 println!("{}", "ANSI 256 color".ansi256(208));
 println!("{}", "ANSI 256 background".on_ansi256(236));
 println!("{}", "Custom color".rgb(255, 128, 0));
 println!("{}", "Custom background".on_rgb(0, 128, 255));
+println!("{}", "HSL color".hsl(0.0, 100.0, 50.0));
+println!("{}", "HSL background".on_hsl(200.0, 100.0, 50.0));
 println!("{}", "Hex color".hex("#ff8000"));
 println!("{}", "Hex background".on_hex("#0080ff"));
 
@@ -149,16 +137,15 @@ fn main() -> Result<(), colored_text::ColorInputError> {
 }
 ```
 
-The public `hsl_to_rgb(h, s, l)` and `hex_to_rgb(input)` helpers return
-`Result<(u8, u8, u8), ColorInputError>` without requiring a terminal color level.
-They do not inspect configuration or the environment.
+Use `hsl_to_rgb(h, s, l)` and `hex_to_rgb(input)` to convert colors without
+selecting a terminal depth. Both return `Result<(u8, u8, u8), ColorInputError>`.
+The converters and resolvers do not read configuration or the environment.
 
 `ColorInputError::InvalidHsl { component, value }` identifies the rejected
-`HslComponent::Hue`, `Saturation`, or `Lightness` and retains the `f32` value.
-`HslComponent` implements `Clone`, `Copy`, `Debug`, `Eq`, `PartialEq`, `Hash`,
-and `Display`. `ColorInputError` is non-exhaustive; downstream matches need a
-wildcard arm. `AnsiColor` (including `Hash`) and `ResolvedColor` remain
-exhaustive for custom renderers.
+component and value. Matches on `ColorInputError` need a wildcard arm because
+it is non-exhaustive; `AnsiColor` and `ResolvedColor` are exhaustive.
+See the [API reference](https://docs.rs/colored_text) for type and conversion
+details.
 
 ```rust
 use colored_text::{hex_to_rgb, hsl_to_rgb};
@@ -167,21 +154,11 @@ assert_eq!(hsl_to_rgb(360.0, 100.0, 50.0).unwrap(), (255, 0, 0));
 assert_eq!(hex_to_rgb("#aBc").unwrap(), (170, 187, 204));
 ```
 
-`resolve_hsl` and `resolve_hex` delegate to these helpers before applying the
-same RGB degradation policy used by
-`StyledText`. HSL requires finite hue in `0..=360` degrees and finite saturation
-and lightness in `0..=100` percent; hue 360 equals 0. Channel conversion retains
-the existing truncation behavior. Hex accepts ASCII `RGB`, `#RGB`, `RRGGBB`, and
-`#RRGGBB`, case-insensitively, without whitespace or repeated prefixes.
-
-Invalid HSL/hex returns `ColorInputError` from public conversion/resolution
-functions, even at `NoColor`; valid resolver input with color disabled returns
-`Ok(None)`. The `.hsl()` / `.on_hsl()` and `.hex()` / `.on_hex()` styling methods
-use the same validated conversions and clear all styling on invalid input,
-returning plain unstyled text. Resolver functions do not read configuration or
-the environment.
-They return structured data for any downstream renderer, with no renderer
-framework dependency.
+`resolve_hsl` and `resolve_hex` use the same color-depth conversion as
+`StyledText`. Invalid input returns `ColorInputError`, even at `NoColor`;
+valid input at `NoColor` returns `Ok(None)`. See
+[input validation](#input-handling-and-validation) for accepted formats and the
+styling methods' fallback behavior.
 
 ## Available Methods
 
@@ -207,19 +184,8 @@ framework dependency.
 - `.bright_cyan()`
 - `.bright_white()`
 
-> [!IMPORTANT]
->
-> Bright ANSI colours use the standard SGR codes `90–97`. Their final appearance depends on the terminal emulator’s active colour palette.
->
-> Some themes, especially soft/pastel themes such as Catppuccin, may make bright colours appear very close to the normal ANSI colours. This does not mean the escape codes are wrong; it means the terminal palette maps those colour slots similarly.
->
-> For example:
->
-> - `31` uses ANSI red / palette slot 1
-> - `90` uses ANSI bright black / palette slot 8
-> - `91` uses bright ANSI red / palette slot 9
-> - `38;5;1` uses 256-colour index 1
-> - `38;5;9` uses 256-colour index 9
+Bright colors use the terminal's palette and may resemble normal colors in
+some themes. See [terminal compatibility](#terminal-compatibility).
 
 ### Background Colors
 
@@ -250,22 +216,16 @@ They use the standard bright background SGR codes `100-107`.
 
 ### ANSI 256, RGB, HSL, and Hex Colors
 
-- `.ansi256(index)` - Custom text color using an ANSI 256-color index (0-255,
-  compile-time enforced)
-- `.on_ansi256(index)` - Custom background color using an ANSI 256-color index
-  (0-255, compile-time enforced)
+- `.ansi256(index)` - Text color from an ANSI 256-color index
+- `.on_ansi256(index)` - Background color from an ANSI 256-color index
 - `.color256(index)` - Alias for `.ansi256(index)`
 - `.on_color256(index)` - Alias for `.on_ansi256(index)`
-- `.rgb(r, g, b)` - Custom text color using RGB values (0-255, compile-time
-  enforced)
-- `.on_rgb(r, g, b)` - Custom background color using RGB values (0-255,
-  compile-time enforced)
-- `.hsl(h, s, l)` - Custom text color using HSL values (hue: 0-360°, saturation:
-  0-100%, lightness: 0-100%)
-- `.on_hsl(h, s, l)` - Custom background color using HSL values
-- `.hex(code)` - Custom text color using HTML/CSS hex code (e.g., "#ff8000" or
-  "ff8000")
-- `.on_hex(code)` - Custom background color using HTML/CSS hex code
+- `.rgb(r, g, b)` - Text color from RGB values
+- `.on_rgb(r, g, b)` - Background color from RGB values
+- `.hsl(h, s, l)` - Text color from HSL values
+- `.on_hsl(h, s, l)` - Background color from HSL values
+- `.hex(code)` - Text color from a hex value
+- `.on_hex(code)` - Background color from a hex value
 
 ### Other
 
@@ -273,10 +233,8 @@ They use the standard bright background SGR codes `100-107`.
 
 ## Input Handling and Validation
 
-- RGB values must be in range 0-255 (enforced at compile time via `u8` type)
-- Attempting to use RGB values > 255 will result in a compile error
-- ANSI 256-color indexes must be in range 0-255 (enforced at compile time via
-  `u8` type)
+- RGB channels and ANSI 256-color indexes use `u8`, which enforces the range
+  `0..=255` at compile time
 - HSL values must be finite, with hue in `0..=360` degrees and saturation and
   lightness in `0..=100` percent; hue 360 equals 0
 - Hex accepts ASCII `RGB`, `#RGB`, `RRGGBB`, and `#RRGGBB`, case-insensitively,
@@ -314,14 +272,9 @@ println!("{}", "Wrong length".hex("#1234")); // Returns uncolored text
 
 ## Environment Color Control
 
-This library respects the [NO_COLOR](https://no-color.org/) environment
-variable. If `NO_COLOR` is set (to any value), all color and style methods will
-return plain unformatted text. This makes it easy to disable all colors globally
-if needed.
-
-`NO_COLOR` is treated as an intentional user opt-out and always disables color
-and style output. If `NO_COLOR` is not set, `ColorMode::Never` and
-`ColorDepthMode::NoColor` also disable color and style output.
+Setting [`NO_COLOR`](https://no-color.org/) to any value, including an empty
+string, disables all color and style output, even when color is forced.
+`ColorMode::Never` and `ColorDepthMode::NoColor` also disable color and styles.
 
 ```rust
 // Colors enabled (NO_COLOR not set)
@@ -334,13 +287,12 @@ println!("{}", "Red text".red()); // Prints without color
 
 Detection is heuristic and environment-based. The crate does not use terminfo,
 termcap, WinAPI console enablement, active terminal queries, CLI argument
-parsing, or runtime dependencies.
+parsing.
 
 ## Runtime Color Modes
 
-By default, this library uses `ColorMode::Auto`: it checks if stdout is going to
-a terminal and disables colors when it is not, unless color is force-enabled.
-Applications can override that behavior explicitly using `ColorizeConfig`:
+The default `ColorMode::Auto` enables color for terminal output or when color
+is forced. Use `ColorizeConfig` to select a mode:
 
 ```rust
 use colored_text::{ColorMode, Colorize, ColorizeConfig};
@@ -355,7 +307,7 @@ ColorizeConfig::set_color_mode(ColorMode::Auto);
 println!("{}", "Colored only in terminals".red());
 ```
 
-Color depth is controlled separately with `ColorDepthMode`:
+Select color depth with `ColorDepthMode`:
 
 ```rust
 use colored_text::{ColorDepthMode, ColorizeConfig};
@@ -363,8 +315,7 @@ use colored_text::{ColorDepthMode, ColorizeConfig};
 ColorizeConfig::set_color_depth_mode(ColorDepthMode::Ansi256);
 ```
 
-The runtime configuration is thread-local. This is useful in tests or
-applications that want to force color on or off for a specific execution path.
+Runtime configuration is thread-local, so changes affect only the current thread.
 
 Applications can inspect the resolved capability level:
 
@@ -375,11 +326,10 @@ let caps = ColorizeConfig::terminal_capabilities(RenderTarget::Stdout);
 println!("stdout color level: {:?}", caps.color_level);
 ```
 
-`ColorDepthMode` selects the color depth used after color output has been
-enabled. It does not, by itself, force color output in `Auto` mode; use
-`ColorMode::Always`, `FORCE_COLOR`, or `CLICOLOR_FORCE` to force-enable output.
-When color output is enabled and no usable depth signal is found, `Auto` on a
-terminal and `Always` both fall back to named ANSI 16 color output.
+`ColorDepthMode` selects depth after color output is enabled. To force color
+in `Auto` mode, use `ColorMode::Always`, `FORCE_COLOR`, or `CLICOLOR_FORCE`.
+Enabled output falls back to named ANSI 16 colors when no usable depth signal
+is available.
 
 For normal targets (`Stdout`, `Stderr`, and `Terminal(bool)`), color control
 precedence is:
@@ -394,17 +344,15 @@ precedence is:
 8. automatic terminal and environment detection
 9. explicit `ColorDepthMode::{Ansi16, Ansi256, TrueColor}`
 
-`NO_COLOR` is presence-based, so even `NO_COLOR=""` disables color. `FORCE_COLOR`
-accepts false-like values to disable color and values such as `1`, `2`, `3`,
-`ansi16`, `ansi256`, and `truecolor` to force a depth. Explicit positive
-`ColorDepthMode` values apply only after color output is enabled and only when
-`FORCE_COLOR` is not set. `CLICOLOR_FORCE` follows the common convention that
-any non-empty value except `0` force-enables color, with a minimum level of ANSI
-16 unless environment hints or explicit `ColorDepthMode` select a higher level.
-`CLICOLOR=0` disables color unless overridden by `FORCE_COLOR` or
-`CLICOLOR_FORCE`, including when `ColorMode::Always` is set. `TERM=dumb` is an
-automatic capability hint, not a user opt-out; an explicit positive
-`ColorDepthMode` can override it once color output is enabled.
+- `FORCE_COLOR` accepts false-like values to disable color, or `1`, `2`, `3`,
+  `ansi16`, `ansi256`, and `truecolor` to force a depth. It takes precedence over
+  positive `ColorDepthMode` settings.
+- `CLICOLOR_FORCE` enables color for any non-empty value except `0`, at ANSI 16
+  or a higher depth selected by environment hints or `ColorDepthMode`.
+- `CLICOLOR=0` disables color even with `ColorMode::Always`, unless
+  `FORCE_COLOR` or `CLICOLOR_FORCE` overrides it.
+- `TERM=dumb` is a capability hint. A positive `ColorDepthMode` can override
+  it after color output is enabled.
 
 For `RenderTarget::Capabilities`, the supplied `TerminalCapabilities` are exact:
 `FORCE_COLOR`, `CLICOLOR`, and positive `ColorDepthMode` values do not raise or
@@ -452,9 +400,7 @@ your terminal emulator and its configuration:
 
 ## Examples
 
-Check out the [examples](examples/) directory for more usage examples.
-
-Right now we only have one example `basic.rs`. You can run this using:
+Run the [basic example](examples/basic.rs):
 
 ```bash
 cargo run --example basic
@@ -462,9 +408,9 @@ cargo run --example basic
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
-for details.
+[MIT](LICENSE).
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+See [CONTRIBUTING.md](https://github.com/seapagan/colored_text/blob/main/CONTRIBUTING.md)
+for development setup and contribution guidelines.
