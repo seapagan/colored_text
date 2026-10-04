@@ -117,6 +117,10 @@ The defaults are overrideable through the environment:
 | `COMPLEXITY_MAX_PARAMETERS` | `8` |
 | `COMPLEXITY_MAX_FILE_NLOC` | `500` |
 
+The default threshold values are supplied by `Makefile.toml`; direct invocation
+of `scripts/check_complexity.py` therefore requires the corresponding environment
+variables to be set.
+
 Equality is allowed; only values above a threshold are findings. Complexity
 findings are advisory and do not fail verification. Malformed or unexpected
 Lizard output, source-set mismatches, version mismatches, invalid configuration,
