@@ -4,6 +4,17 @@ Keep changes focused and preserve the existing public API and rendering policy.
 Use standard Rust formatting and document every new public item. The project
 prefers zero runtime dependencies; justify any proposed runtime dependency.
 
+## Published package and full source
+
+The crates.io package retains the library source, examples, and user-facing
+documentation required to build and use `colored_text`. Repository development
+files, integration tests, fixtures, and tooling are not included. Unit-test
+modules within the library source remain part of `src/`.
+
+For the complete source tree, including the full test suite and development
+tooling, use the [GitHub repository](https://github.com/seapagan/colored_text)
+or one of GitHub's source archives.
+
 ## Rust support
 
 `Cargo.toml`'s `rust-version` is the single source of truth for the MSRV. The
