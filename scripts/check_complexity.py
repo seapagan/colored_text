@@ -75,11 +75,12 @@ def _limit(name: str) -> int:
     return int(value)
 
 
-def _run(command: Sequence[str]) -> str:
+def _run(command: Sequence[str], *, cwd: Path | None = None) -> str:
     try:
         # Controlled argv boundary: fixed executable, separate arguments, no shell.
         result = subprocess.run(  # noqa: S603  # nosec B603
             command,
+            cwd=cwd,
             capture_output=True,
             text=True,
             errors="surrogateescape",
@@ -125,7 +126,13 @@ def _integer(row: dict[str, str | None], field: str) -> int:
     return value
 
 
-def _source_files() -> list[str]:
+def _repository_root() -> Path:
+    return Path(_run(["git", "rev-parse", "--show-toplevel"]).removesuffix("\n"))
+
+
+def _source_files(root: Path | None = None) -> list[str]:
+    if root is None:
+        root = _repository_root()
     output = _run(
         [
             "git",
@@ -138,9 +145,10 @@ def _source_files() -> list[str]:
             "*.rs",
             "*.py",
         ],
+        cwd=root,
     )
     files = sorted(
-        {_normalized(path) for path in output.split("\0") if Path(path).is_file()}
+        {_normalized(path) for path in output.split("\0") if (root / path).is_file()}
     )
     if not files:
         message = "no non-ignored Rust or Python source files found"
@@ -334,13 +342,14 @@ def main() -> None:
         )
         raise CheckerError(message)
 
-    files = _source_files()
+    root = _repository_root()
+    files = _source_files(root)
     functions = _function_metrics(
-        _run(_lizard_command(["-V", "--csv"], files)),
+        _run(_lizard_command(["-V", "--csv"], files), cwd=root),
         set(files),
     )
     file_nloc = _file_metrics(
-        _run(_lizard_command(["--xml"], files)),
+        _run(_lizard_command(["--xml"], files), cwd=root),
         set(files),
     )
     _report(

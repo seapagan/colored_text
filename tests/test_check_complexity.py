@@ -117,6 +117,42 @@ class ComplexityCheckerTests(unittest.TestCase):
             ["tracked.py", "tracked.rs", "untracked.py", "untracked.rs"],
         )
 
+    def test_source_files_resolve_full_repository_from_nested_directory(self) -> None:
+        """Nested invocation discovers tracked and untracked sources everywhere."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            previous = Path.cwd()
+            try:
+                os.chdir(root)
+                CHECKER._run(["git", "init", "-q"])
+                (root / "src").mkdir()
+                (root / "scripts").mkdir()
+                (root / "src" / "lib.rs").write_text("fn value() {}\n")
+                (root / "scripts" / "helper.py").write_text("pass\n")
+                (root / "root.py").write_text("pass\n")
+                CHECKER._run(["git", "add", "src/lib.rs", "root.py"])
+                root_files = CHECKER._source_files()
+                os.chdir(root / "scripts")
+                nested_files = CHECKER._source_files()
+            finally:
+                os.chdir(previous)
+
+        self.assertEqual(root_files, ["root.py", "scripts/helper.py", "src/lib.rs"])
+        self.assertEqual(nested_files, root_files)
+
+    def test_source_files_fail_outside_git_repository(self) -> None:
+        """Discovery fails loudly instead of reporting an empty analysis."""
+        with tempfile.TemporaryDirectory() as directory:
+            previous = Path.cwd()
+            try:
+                os.chdir(directory)
+                with self.assertRaisesRegex(
+                    CHECKER.CheckerError, "not a git repository"
+                ):
+                    CHECKER._source_files()
+            finally:
+                os.chdir(previous)
+
     def test_source_files_exclude_unstaged_deletions_and_renames(self) -> None:
         """Git discovery returns only source files present in the worktree."""
         with tempfile.TemporaryDirectory() as directory:
