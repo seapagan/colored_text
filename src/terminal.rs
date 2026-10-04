@@ -99,10 +99,19 @@ pub(crate) fn detect_color_level(
         return ColorLevel::NoColor;
     }
 
+    enabled_color_level(depth_mode, clicolor_forced, env)
+}
+
+// Resolve depth only after output is enabled. CLICOLOR_FORCE supplies a minimum
+// capability, while an explicit depth overrides the detected capability.
+fn enabled_color_level(
+    depth_mode: ColorDepthMode,
+    clicolor_forced: bool,
+    env: &impl EnvProvider,
+) -> ColorLevel {
     let mut level = match detect_env_color_level(env) {
         Some(detected) if clicolor_forced => detected.max(ColorLevel::Ansi16),
         Some(detected) => detected,
-        None if clicolor_forced => ColorLevel::Ansi16,
         None => ColorLevel::Ansi16,
     };
 

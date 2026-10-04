@@ -1,6 +1,13 @@
 use colored_text::{ColorDepthMode, ColorMode, Colorize, ColorizeConfig, RenderTarget};
 
 fn main() {
+    named_colors_and_styles();
+    extended_colors();
+    style_chaining_and_formatting();
+    runtime_color_modes();
+}
+
+fn named_colors_and_styles() {
     // Basic colors
     println!("\nBasic colors:");
     println!("{}", "Red text".red());
@@ -36,7 +43,9 @@ fn main() {
     println!("{}", "Underlined text".underline());
     println!("{}", "Inverse text".inverse());
     println!("{}", "Strikethrough text".strikethrough());
+}
 
+fn extended_colors() {
     // ANSI 256, RGB, HSL, and Hex colors
     println!("\nANSI 256, RGB, HSL, and Hex colors:");
     println!("{}", "ANSI 256 color".ansi256(208));
@@ -56,7 +65,9 @@ fn main() {
     println!("{}", "Hex shorthand (#f80)".hex("#f80"));
     println!("{}", "Hex shorthand without # (f80)".hex("f80"));
     println!("{}", "Hex background (#0080ff)".on_hex("#0080ff"));
+}
 
+fn style_chaining_and_formatting() {
     // Chaining styles
     println!("\nChained styles:");
     println!("{}", "Bold red text".red().bold());
@@ -88,7 +99,9 @@ fn main() {
         "is".green(),
         "important".yellow().underline()
     );
+}
 
+fn runtime_color_modes() {
     // Runtime color modes
     println!("\nRuntime color modes:");
     let caps = ColorizeConfig::terminal_capabilities(RenderTarget::Stdout);

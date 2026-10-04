@@ -101,6 +101,16 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Install Python for support tooling
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14.8'
+      - name: Install Python support tools
+        run: |
+          python -m pip install 'ruff==0.16.10' 'mypy==2.4.0' 'lizard==1.23.0'
+          ruff --version
+          mypy --version
+          lizard --version
       - name: Install current stable Rust
         uses: seapagan/setup-rust@a91f5a34c552642ece0e8cef8b5e9226f41a3c0b # v1.0.0
         with:
@@ -128,8 +138,13 @@ jobs:
           printf '%s  %s\n' "$ACTIONLINT_SHA256" "$archive" | sha256sum --check
           tar -xzf "$archive" -C "$RUNNER_TEMP" actionlint
           install -m 755 "$RUNNER_TEMP/actionlint" "$HOME/.cargo/bin/actionlint"
-      - name: Verify dependencies, workflows, and coverage
+      - name: Verify support code, dependencies, workflows, and coverage
         run: |
+          cargo make python-format
+          cargo make python-lint
+          cargo make python-type
+          cargo make python-test
+          cargo make complexity
           cargo make audit
           cargo make deny
           cargo make actions-lint

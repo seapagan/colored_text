@@ -8,6 +8,19 @@ repository = "https://github.com/seapagan/colored_text"
 license = "MIT"
 keywords = ["ansi", "color", "formatting", "terminal", "text"]
 categories = ["command-line-utilities", "text-processing"]
+exclude = [
+    ".cargo/**",
+    ".github/**",
+    ".vscode/**",
+    "scripts/**",
+    "tests/**",
+    ".gitignore",
+    "CONTRIBUTING.md",
+    "Makefile.toml",
+    "TODO.md",
+    "deny.toml",
+    "ruff.toml",
+]
 
 [[example]]
 name = "basic"

@@ -1,0 +1,21 @@
+[lint]
+select = ["ALL"]
+ignore = [
+  "COM812", # Ruff's formatter owns trailing-comma layout.
+  "CPY001", # This repository does not require per-file copyright notices.
+]
+
+[lint.per-file-ignores]
+"scripts/check_complexity.py" = [
+  "INP001", # The scripts directory contains executables, not a Python package.
+  "T201",   # Printing the report and fatal diagnostics is this CLI's interface.
+]
+"tests/**/*.py" = [
+  "INP001", # The tests directory contains test/support files, not a Python package.
+  "PT009",  # These tests intentionally use standard unittest assertions.
+  "PT027",  # These tests intentionally use standard unittest exception assertions.
+  "SLF001", # Direct checker-helper tests are intentional regression coverage.
+]
+
+[lint.pydocstyle]
+convention = "google"
