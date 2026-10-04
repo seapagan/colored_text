@@ -1,6 +1,6 @@
 [package]
 name = "colored_text"
-version = "0.5.1"
+version = "0.6.0"
 edition = "2021"
 rust-version = "1.70.0"
 description = "A simple library for adding colors and styles to terminal text"
@@ -9,17 +9,17 @@ license = "MIT"
 keywords = ["ansi", "color", "formatting", "terminal", "text"]
 categories = ["command-line-utilities", "text-processing"]
 exclude = [
-    ".cargo/**",
-    ".github/**",
-    ".vscode/**",
-    "scripts/**",
-    "tests/**",
-    ".gitignore",
-    "CONTRIBUTING.md",
-    "Makefile.toml",
-    "TODO.md",
-    "deny.toml",
-    "ruff.toml",
+  ".cargo/**",
+  ".github/**",
+  ".gitignore",
+  ".vscode/**",
+  "CONTRIBUTING.md",
+  "Makefile.toml",
+  "TODO.md",
+  "deny.toml",
+  "ruff.toml",
+  "scripts/**",
+  "tests/**",
 ]
 
 [[example]]
